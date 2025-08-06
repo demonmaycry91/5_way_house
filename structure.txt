@@ -1,7 +1,7 @@
-# 這是我的 Flask 專案
+# Flask 專案開發
 my-flask-app/
-├── structure.txt
-├── create_project.py
+├── structure.txt               # 專案開發的文件夾結構
+├── create_project.py           # 創建文件或目錄的 Python 腳本
 ├── .gitignore                  # 忽略虛擬環境和快取檔
 ├── requirements.in             # 專案直接依賴的套件
 ├── run.py                      # 啟動應用程式的主腳本

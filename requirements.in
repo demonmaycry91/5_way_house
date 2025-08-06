@@ -1,2 +1,4 @@
 Flask
 pytesseract
+Flask-SQLAlchemy
+Flask-Migrate
