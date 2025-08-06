@@ -1,7 +1,8 @@
 from flask import render_template, request, flash, redirect, url_for, Blueprint
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User
+from ..models import User, BusinessDay, Transaction # <-- 新增匯入 BusinessDay
 from .. import db, login_manager
+from datetime import date # <-- 新增匯入 date
 
 # 1. 定義藍圖 (這是您原本就有的，保持不變)
 bp = Blueprint('cashier', __name__, url_prefix='/cashier')
@@ -14,38 +15,108 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# 3. 定義路由，並使用 @login_required 保護需要登入的頁面
-@bp.route('/')
-@login_required
-def cashier_page():
-    """收銀機主頁，登入後才能看到"""
-    return f"<h1>歡迎, {current_user.username}!</h1><a href='{url_for('cashier.logout')}'>點此登出</a>"
 
+# 3. 定義路由，並使用 @login_required 保護需要登入的頁面
+# @bp.route('/')
+# @login_required
+# def cashier_page():
+#     return f"<h1>歡迎, {current_user.username}!</h1><a href='{url_for('cashier.logout')}'>點此登出</a>"
+
+@bp.route('/dashboard')
+@login_required
+def dashboard():
+    """每日營運儀表板"""
+    today = date.today()
+
+    # --- ↓↓↓ 修改點在這裡 ↓↓↓ ---
+    # 更新據點列表，將特賣會改名並新增「其他」
+    LOCATIONS = ['本舖', '瘋衣舍', '特賣會 1', '特賣會 2', '其他']
+    # --- ↑↑↑ 修改完成 ↑↑↑ ---
+    
+    locations_status = {}
+
+    for location_name in LOCATIONS:
+        # 查詢今天、此據點的營業日紀錄
+        business_day = BusinessDay.query.filter_by(date=today, location=location_name).first()
+        
+        status_info = {}
+        if business_day is None:
+            # 尚未開帳
+            status_info = {
+                'status': 'NOT_STARTED',
+                'status_text': '尚未開帳',
+                'message': '點擊以開始本日營業作業。',
+                'badge_class': 'bg-secondary',
+                'url': url_for('cashier.start_day', location=location_name)
+            }
+        elif business_day.status == 'OPEN':
+            # 營業中
+            status_info = {
+                'status': 'OPEN',
+                'status_text': '營業中',
+                'message': f"本日銷售額: ${business_day.total_sales:,.0f}",
+                'badge_class': 'bg-success',
+                'url': url_for('cashier.pos', location=location_name)
+            }
+        elif business_day.status == 'CLOSED':
+            # 已日結
+            status_info = {
+                'status': 'CLOSED',
+                'status_text': '已日結',
+                'message': '本日帳務已結算，僅供查閱。',
+                'badge_class': 'bg-primary',
+                'url': url_for('cashier.view_report', location=location_name)
+            }
+        
+        locations_status[location_name] = status_info
+
+    return render_template('cashier/dashboard.html', 
+                           today_date=today.strftime('%Y-%m-%d'), 
+                           locations_status=locations_status)
+
+@bp.route('/start_day/<location>')
+@login_required
+def start_day(location):
+    return f"準備為 {location} 開店..."
+
+@bp.route('/pos/<location>')
+@login_required
+def pos(location):
+    return f"進入 {location} 的 POS 系統..."
+
+@bp.route('/view_report/<location>')
+@login_required
+def view_report(location):
+    return f"查看 {location} 的報表..."
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     """處理登入邏輯"""
     if current_user.is_authenticated:
-        return redirect(url_for('cashier.cashier_page'))
+        return redirect(url_for('cashier.dashboard'))
 
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
-        user = User.query.filter_by(username=username).first()
+        # --- 修正點 ---
+        # 我們將查詢結果統一儲存在名為 'user_from_db' 的變數中
+        user_from_db = User.query.filter_by(username=username).first()
 
-        if user is None or not user.check_password(password):
+        # 檢查使用者是否存在，以及密碼是否正確
+        if user_from_db is None or not user_from_db.check_password(password):
             flash('帳號或密碼錯誤，請重新輸入。', 'danger')
             return redirect(url_for('cashier.login'))
         
-        login_user(user)
+        # --- 修正點 ---
+        # 將正確的變數 'user_from_db' 傳遞給 login_user 函式
+        login_user(user_from_db)
         flash('登入成功！', 'success')
 
         next_page = request.args.get('next')
-        return redirect(next_page or url_for('cashier.cashier_page'))
+        return redirect(next_page or url_for('cashier.dashboard'))
 
     return render_template('cashier/login.html')
-
 
 @bp.route('/logout')
 @login_required
