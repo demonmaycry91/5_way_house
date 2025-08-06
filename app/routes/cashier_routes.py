@@ -130,7 +130,24 @@ def start_day(location):
 @bp.route('/pos/<location>')
 @login_required
 def pos(location):
-    return f"進入 {location} 的 POS 系統..."
+    """顯示 POS 系統主介面"""
+    today = date.today()
+    
+    # 查詢今天此據點的營業日紀錄
+    business_day = BusinessDay.query.filter_by(date=today, location=location, status='OPEN').first()
+
+    # 如果找不到營業中紀錄 (例如使用者手動輸入網址)，則導回儀表板
+    if not business_day:
+        flash(f'據點 "{location}" 今日尚未開店營業。', 'warning')
+        return redirect(url_for('cashier.dashboard'))
+
+    # 將初始數據傳遞給範本
+    return render_template('cashier/pos.html',
+                           location=location,
+                           today_date=today.strftime('%Y-%m-%d'),
+                           initial_sales=business_day.total_sales,
+                           initial_items=business_day.total_items,
+                           initial_transactions=business_day.total_transactions)
 
 @bp.route('/view_report/<location>')
 @login_required
