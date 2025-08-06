@@ -1,0 +1,33 @@
+# 這是我的 Flask 專案
+my-flask-app/
+├── structure.txt
+├── create_project.py
+├── .gitignore                  # 忽略虛擬環境和快取檔
+├── requirements.in             # 專案直接依賴的套件
+├── run.py                      # 啟動應用程式的主腳本
+├── instance/                   # 存放本地配置，不會被 Git 追蹤
+│   └── config.py
+└── my_app/                     # 應用程式的核心程式碼
+    ├── __init__.py             # 應用程式工廠函式
+    ├── templates/              # 所有 HTML 樣板
+    │   ├── base.html           # 基礎版面，包含 Bootstrap
+    │   ├── index.html          # 首頁樣板
+    │   ├── ocr/                # OCR 功能的樣板
+    │   │   └── scan_form.html
+    │   └── cashier/            # 收銀機功能的樣板
+    │       └── pos_system.html
+    ├── static/                 # 存放靜態檔案
+    │   ├── css/
+    │   │   └── main.css
+    │   ├── js/
+    │   │   └── ocr_scripts.js
+    │   └── images/
+    │       └── logo.png
+    ├── routes/                 # 存放所有藍圖（路由）
+    │   ├── __init__.py
+    │   ├── main_routes.py      # 主要功能的路由
+    │   ├── ocr_routes.py       # OCR 功能的路由
+    │   └── cashier_routes.py   # 收銀機功能的路由
+    ├── services/               # 存放商業邏輯或服務
+    │   └── ocr_service.py
+    └── models.py               # 資料庫模型
