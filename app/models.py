@@ -1,13 +1,23 @@
 from . import db  # 從 my_app 的 __init__.py 中匯入 db 實例
 from datetime import datetime
+from flask_login import UserMixin # <-- 新增
+from werkzeug.security import generate_password_hash, check_password_hash # <-- 新增
 
-# 為了避免與 Flask-Login 的 UserMixin 衝突，我們可以將我們的 User 模型改名
-# 或者在這裡先這樣定義，之後再整合 Flask-Login
-class User(db.Model):
+
+# 讓 User 模型繼承 UserMixin，它會提供 is_authenticated 等預設屬性
+class User(db.Model, UserMixin):
     """使用者模型：用於登入驗證"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False) # 密碼將會被加密儲存
+    password_hash = db.Column(db.String(200), nullable=False)
+
+    # 新增設定密碼的方法
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    # 新增驗證密碼的方法
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
     def __repr__(self):
         return f'<User {self.username}>'

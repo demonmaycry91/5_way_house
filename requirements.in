@@ -2,3 +2,4 @@ Flask
 pytesseract
 Flask-SQLAlchemy
 Flask-Migrate
+Flask-Login
