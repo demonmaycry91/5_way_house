@@ -74,10 +74,58 @@ def dashboard():
                            today_date=today.strftime('%Y-%m-%d'), 
                            locations_status=locations_status)
 
-@bp.route('/start_day/<location>')
+@bp.route('/start_day/<location>', methods=['GET', 'POST'])
 @login_required
 def start_day(location):
-    return f"準備為 {location} 開店..."
+    """處理開店作業的表單顯示與提交"""
+    today = date.today()
+
+    # 檢查今天此據點是否已經開店，防止重複操作
+    existing_day = BusinessDay.query.filter_by(date=today, location=location).first()
+    if existing_day:
+        flash(f'據點 "{location}" 今日已開帳或已日結，無法重複操作。', 'warning')
+        return redirect(url_for('cashier.dashboard'))
+
+    if request.method == 'POST':
+        try:
+            # 從表單獲取資料
+            opening_cash = request.form.get('opening_cash', type=float)
+            location_notes = request.form.get('location_notes')
+
+            # 簡單的後端驗證
+            if opening_cash is None or opening_cash < 0:
+                flash('開店準備金格式不正確或小於 0，請重新輸入。', 'danger')
+                return redirect(url_for('cashier.start_day', location=location))
+
+            # 建立新的 BusinessDay 紀錄
+            new_business_day = BusinessDay(
+                date=today,
+                location=location,
+                location_notes=location_notes,
+                status='OPEN', # 將狀態設定為「營業中」
+                opening_cash=opening_cash,
+                total_sales=0, # 初始銷售額為 0
+                total_items=0, # 初始銷售件數為 0
+                total_transactions=0 # 初始交易筆數為 0
+            )
+
+            # 將新紀錄加入資料庫並提交
+            db.session.add(new_business_day)
+            db.session.commit()
+
+            flash(f'據點 "{location}" 開店成功！現在可以開始記錄交易。', 'success')
+            # 成功後，導向該據點的 POS 系統頁面
+            return redirect(url_for('cashier.pos', location=location))
+
+        except Exception as e:
+            db.session.rollback() # 如果發生錯誤，回滾資料庫操作
+            flash(f'處理開店作業時發生錯誤：{e}', 'danger')
+            return redirect(url_for('cashier.start_day', location=location))
+    
+    # 如果是 GET 請求，就顯示開店表單
+    return render_template('cashier/start_day_form.html', 
+                           location=location, 
+                           today_date=today.strftime('%Y-%m-%d'))
 
 @bp.route('/pos/<location>')
 @login_required

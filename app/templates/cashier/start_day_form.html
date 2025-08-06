@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}開店作業{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-0">開店作業</h2>
+                <p class="text-muted">據點：{{ location }} | 日期：{{ today_date }}</p>
+            </div>
+            <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-sm btn-secondary">返回儀表板</a>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('cashier.start_day', location=location) }}">
+                    <div class="mb-3">
+                        <label for="opening_cash" class="form-label">開店準備金 (元)</label>
+                        <input type="number" class="form-control" id="opening_cash" name="opening_cash" 
+                               min="0" step="1" required 
+                               placeholder="請輸入今日準備的現金總額">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="location_notes" class="form-label">備註 (選填)</label>
+                        <textarea class="form-control" id="location_notes" name="location_notes" rows="3" 
+                                  placeholder="例如：今日特賣會地點在三樓中庭"></textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">確認開始營業</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
