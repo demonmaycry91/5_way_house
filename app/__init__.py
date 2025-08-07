@@ -39,10 +39,11 @@ def create_app():
     login_manager.init_app(app) # <-- 新增，初始化 login_manager
 
     # 註冊藍圖
-    from .routes import main_routes, ocr_routes, cashier_routes
+    from .routes import main_routes, ocr_routes, cashier_routes, google_routes  # <-- 新增匯入 google_routes
     app.register_blueprint(main_routes.bp)
     app.register_blueprint(ocr_routes.bp)
     app.register_blueprint(cashier_routes.bp)
+    app.register_blueprint(google_routes.bp)  # <-- 新增，註冊 Google OAuth 路由    
 
     # 在此匯入模型，確保 Flask-Migrate 可以偵測到它們
     from . import models
