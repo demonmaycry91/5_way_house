@@ -1,5 +1,5 @@
 from . import db  # 從 my_app 的 __init__.py 中匯入 db 實例
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_login import UserMixin # <-- 新增
 from werkzeug.security import generate_password_hash, check_password_hash # <-- 新增
 
@@ -49,8 +49,15 @@ class BusinessDay(db.Model):
     # 建立與交易紀錄的一對多關聯
     transactions = db.relationship('Transaction', backref='business_day', lazy=True)
 
+    # 更新時間戳記
+    updated_at = db.Column(db.DateTime,
+                           default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+    
     def __repr__(self):
         return f'<BusinessDay {self.date} - {self.location}>'
+    
+
 
 class Transaction(db.Model):
     """交易紀錄模型：記錄每一筆顧客交易"""

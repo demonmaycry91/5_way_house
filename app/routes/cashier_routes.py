@@ -29,11 +29,7 @@ def load_user(user_id):
 def dashboard():
     """每日營運儀表板"""
     today = date.today()
-
-    # --- ↓↓↓ 修改點在這裡 ↓↓↓ ---
-    # 更新據點列表，將特賣會改名並新增「其他」
     LOCATIONS = ['本舖', '瘋衣舍', '特賣會 1', '特賣會 2', '其他']
-    # --- ↑↑↑ 修改完成 ↑↑↑ ---
     
     locations_status = {}
 
@@ -43,31 +39,38 @@ def dashboard():
         
         status_info = {}
         if business_day is None:
-            # 尚未開帳
+            # 狀態一：尚未開帳
             status_info = {
-                'status': 'NOT_STARTED',
                 'status_text': '尚未開帳',
                 'message': '點擊以開始本日營業作業。',
                 'badge_class': 'bg-secondary',
                 'url': url_for('cashier.start_day', location=location_name)
             }
         elif business_day.status == 'OPEN':
-            # 營業中
+            # 狀態二：營業中
             status_info = {
-                'status': 'OPEN',
                 'status_text': '營業中',
                 'message': f"本日銷售額: ${business_day.total_sales:,.0f}",
                 'badge_class': 'bg-success',
                 'url': url_for('cashier.pos', location=location_name)
             }
-        elif business_day.status == 'CLOSED':
-            # 已日結
+        # --- ↓↓↓ 這就是我們新增的邏輯 ↓↓↓ ---
+        elif business_day.status == 'PENDING_REPORT':
+            # 狀態三：等待報表確認
             status_info = {
-                'status': 'CLOSED',
+                'status_text': '待確認報表',
+                'message': '點擊以檢視並確認本日報表。',
+                'badge_class': 'bg-warning text-dark', # 使用黃色背景
+                'url': url_for('cashier.daily_report', location=location_name)
+            }
+        # --- ↑↑↑ 新增結束 ↑↑↑ ---
+        elif business_day.status == 'CLOSED':
+            # 狀態四：已日結
+            status_info = {
                 'status_text': '已日結',
                 'message': '本日帳務已結算，僅供查閱。',
                 'badge_class': 'bg-primary',
-                'url': url_for('cashier.view_report', location=location_name)
+                'url': url_for('cashier.daily_report', location=location_name) # 已日結也應該能查看報表
             }
         
         locations_status[location_name] = status_info
@@ -260,11 +263,68 @@ def close_day(location):
                            today_date=today.strftime('%Y-%m-%d'),
                            denominations=denominations)
 
-# 我們也需要建立一個假的 daily_report 路由，避免現在出錯
 @bp.route('/report/<location>')
 @login_required
 def daily_report(location):
-    return f"準備顯示 {location} 的最終報表..."
+    """顯示最終的每日報表"""
+    today = date.today()
+    
+    business_day = BusinessDay.query.filter(
+        BusinessDay.date == today,
+        BusinessDay.location == location,
+        BusinessDay.status.in_(['PENDING_REPORT', 'CLOSED'])
+    ).first()
+
+    if not business_day:
+        flash(f'找不到據點 "{location}" 今日的日結報表資料。', 'warning')
+        return redirect(url_for('cashier.dashboard'))
+
+    closing_cash = business_day.closing_cash or 0
+    opening_cash = business_day.opening_cash or 0
+    total_sales = business_day.total_sales or 0
+    
+    expected_total = opening_cash + total_sales
+    difference = closing_cash - expected_total
+
+    # --- ↓↓↓ THE FIX IS ON THIS LINE ↓↓↓ ---
+    return render_template('cashier/daily_report.html',
+                           day=business_day,
+                           帳面總額=expected_total,
+                           帳差=difference)
+
+@bp.route('/confirm_report/<location>', methods=['POST'])
+@login_required
+def confirm_report(location):
+    """處理最終確認，將本日營業正式結束"""
+    today = date.today()
+    
+    business_day = BusinessDay.query.filter_by(
+        date=today, 
+        location=location, 
+        status='PENDING_REPORT'
+    ).first()
+
+    if not business_day:
+        flash('找不到待確認的報表，或該報表已被確認。', 'warning')
+        return redirect(url_for('cashier.dashboard'))
+        
+    try:
+        # --- 更新資料庫，正式封存 ---
+        business_day.status = 'CLOSED'
+        # 同時將計算出的帳面總額與帳差存入資料庫
+        business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+        business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
+        
+        db.session.commit()
+        
+        flash(f'據點 "{location}" 本日營業已成功歸檔！', 'success')
+        return redirect(url_for('cashier.dashboard'))
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'歸檔時發生錯誤：{e}', 'danger')
+        return redirect(url_for('cashier.daily_report', location=location))
+
     
 @bp.route('/view_report/<location>')
 @login_required

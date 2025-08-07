@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}每日報表 - {{ day.location }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-0">每日報表</h2>
+                <p class="text-muted">據點：{{ day.location }} | 日期：{{ day.date.strftime('%Y-%m-%d') }}</p>
+            </div>
+            {% if day.status != 'CLOSED' %}
+            <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-sm btn-secondary">返回儀表板 (稍後確認)</a>
+            {% endif %}
+        </div>
+
+        {# ... flash 訊息區塊維持不變 ... #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-header fs-5">帳務核對</div>
+            <div class="card-body">
+                <table class="table table-borderless fs-5 mb-0">
+                    <tbody>
+                        <tr>
+                            <td>開店準備金</td>
+                            <td class="text-end" style="width: 1rem;">$</td>
+                            <td class="text-end" style="width: 10ch;">{{ day.opening_cash | round(2) | int }}</td>
+                        </tr>
+                        <tr>
+                            <td>本日銷售總額</td>
+                            <td class="text-end" style="width: 1rem;">$</td>
+                            <td class="text-end" style="width: 10ch;">{{ day.total_sales | round(2) | int }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">帳面總額 (A)</td>
+                            <td class="text-end fw-bold" style="width: 1rem;">$</td>
+                            <td class="text-end fw-bold" style="width: 10ch;">{{ 帳面總額 | round(2) | int }}</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold">盤點現金合計 (B)</td>
+                            <td class="text-end fw-bold" style="width: 1rem;">$</td>
+                            <td class="text-end fw-bold" style="width: 10ch;">{{ day.closing_cash | round(2) | int }}</td>
+                        </tr>
+                        {# --- ↓↓↓ 這就是最終的修正點 ↓↓↓ --- #}
+                        <tr class="fw-bolder">
+                            <td class="{% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}">
+                                帳差 (B - A)
+                            </td>
+                            <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}" style="width: 1rem;">
+                                $
+                            </td>
+                            <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}" style="width: 10ch;">
+                                {{ 帳差 | round(2) | int }}
+                            </td>
+                        </tr>
+                         {# --- ↑↑↑ 修正結束 ↑↑↑ --- #}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header fs-5">業績統計</div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
+                        交易筆數 (顧客總數)
+                        <span class="badge bg-primary rounded-pill fs-6">{{ day.total_transactions }} 筆</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
+                        銷售件數 (商品總數)
+                        <span class="badge bg-primary rounded-pill fs-6">{{ day.total_items }} 件</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header fs-5">簽核欄</div>
+            <div class="card-body">
+                 <div class="row text-center">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">作業員</label>
+                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input type="text" class="form-control signature-input" style="display:none;" placeholder="請在此輸入姓名"></div>
+                        <div class="mt-2"><button type="button" class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button" class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">覆核員</label>
+                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input type="text" class="form-control signature-input" style="display:none;" placeholder="請在此輸入姓名"></div>
+                        <div class="mt-2"><button type="button" class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button" class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">出納員</label>
+                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input type="text" class="form-control signature-input" style="display:none;" placeholder="請在此輸入姓名"></div>
+                        <div class="mt-2"><button type="button" class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button" class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if day.status != 'CLOSED' %}
+        <form method="POST" action="{{ url_for('cashier.confirm_report', location=day.location) }}" 
+              onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
+            <div class="d-grid mt-4">
+                <button type="submit" class="btn btn-success btn-lg">確認存檔並結束本日營業</button>
+            </div>
+        </form>
+        {% else %}
+        <div class="alert alert-info mt-4 text-center" role="alert">
+            本日帳務已於 {{ day.updated_at.strftime('%Y-%m-%d %H:%M') }} 歸檔，僅供查閱。<br>
+            <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-primary mt-2">返回儀表板</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .signature-container { position: relative; width: 100%; height: 150px; }
+    .signature-canvas { display: block; width: 100%; height: 150px; cursor: crosshair; }
+    .signature-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; font-size: 2rem; text-align: center; border: none; background-color: transparent; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const signatureContainers = document.querySelectorAll('.signature-container');
+    signatureContainers.forEach(container => {
+        const canvas = container.querySelector('.signature-canvas');
+        const input = container.querySelector('.signature-input');
+        const toggleBtn = container.parentElement.querySelector('.toggle-btn');
+        const clearBtn = container.parentElement.querySelector('.clear-btn');
+        const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+            signaturePad.clear();
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+        clearBtn.addEventListener('click', () => {
+            if (canvas.style.display !== 'none') { signaturePad.clear(); } else { input.value = ''; }
+        });
+        toggleBtn.addEventListener('click', () => {
+            const isCanvasVisible = canvas.style.display !== 'none';
+            if (isCanvasVisible) {
+                canvas.style.display = 'none';
+                input.style.display = 'block';
+                toggleBtn.innerText = '切換簽名';
+            } else {
+                canvas.style.display = 'block';
+                input.style.display = 'none';
+                toggleBtn.innerText = '切換打字';
+                resizeCanvas();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
