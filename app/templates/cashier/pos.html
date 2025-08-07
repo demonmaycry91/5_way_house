@@ -22,6 +22,8 @@
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="clearEntry">CE</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="backspace">⌫</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="/">÷</button></div>
+                        
+                        {# ... 其他數字與運算按鈕維持不變 ... #}
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="7">7</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="8">8</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="9">9</button></div>
@@ -34,7 +36,8 @@
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="2">2</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="3">3</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="+">+</button></div>
-                        <div class="col-6 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="0">0</button></div>
+                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="0">0</button></div>
+                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="00">00</button></div>
                         <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value=".">.</button></div>
                         <div class="col-3 d-grid"><button id="equals-btn" class="btn btn-lg btn-success" data-action="equals">=</button></div>
                     </div>
@@ -43,40 +46,27 @@
         </div>
 
         <div class="col-md-6">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
+            <div class="row align-items-center mb-3">
+                <div class="col">
                     <h2 class="mb-0">即時業績</h2>
-                    <p class="text-muted">據點：{{ location }} | 日期：{{ today_date }}</p>
+                    <p class="text-muted mb-0">據點：{{ location }} | 日期：{{ today_date }}</p>
                 </div>
-                <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-secondary">返回儀表板</a>
+                <div class="col-auto">
+                    <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-secondary">返回儀表板</a>
+                </div>
             </div>
 
+            {# ... 右側其他卡片維持不變 ... #}
             <div class="card text-center mb-3">
                 <div class="card-header">本日銷售總額</div>
                 <div class="card-body">
                     <h3 class="card-title" id="total-sales">$ {{ initial_sales | int }}</h3>
                 </div>
             </div>
-
             <div class="row">
-                <div class="col-6">
-                    <div class="card text-center">
-                        <div class="card-header">本日銷售件數</div>
-                        <div class="card-body">
-                            <h3 class="card-title" id="total-items">{{ initial_items }}</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="card text-center">
-                        <div class="card-header">本日交易筆數</div>
-                        <div class="card-body">
-                            <h3 class="card-title" id="total-transactions">{{ initial_transactions }}</h3>
-                        </div>
-                    </div>
-                </div>
+                <div class="col-6"><div class="card text-center"><div class="card-header">本日銷售件數</div><div class="card-body"><h3 class="card-title" id="total-items">{{ initial_items }}</h3></div></div></div>
+                <div class="col-6"><div class="card text-center"><div class="card-header">本日交易筆數</div><div class="card-body"><h3 class="card-title" id="total-transactions">{{ initial_transactions }}</h3></div></div></div>
             </div>
-
             <div class="d-grid mt-4">
                 <button class="btn btn-danger btn-lg">結束營業 (日結)</button>
             </div>

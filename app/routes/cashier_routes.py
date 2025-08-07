@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from ..models import User, BusinessDay, Transaction # <-- 新增匯入 BusinessDay
 from .. import db, login_manager
 from datetime import date # <-- 新增匯入 date
+from flask import jsonify # <-- 請確保檔案頂部有匯入 jsonify
 
 # 1. 定義藍圖 (這是您原本就有的，保持不變)
 bp = Blueprint('cashier', __name__, url_prefix='/cashier')
@@ -149,6 +150,63 @@ def pos(location):
                            initial_items=business_day.total_items,
                            initial_transactions=business_day.total_transactions)
 
+@bp.route('/record_transaction', methods=['POST'])
+@login_required
+def record_transaction():
+    """接收前端 AJAX 請求，記錄一筆新交易"""
+    # 獲取從前端傳來的 JSON 資料
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': '沒有收到資料'}), 400
+
+    location = data.get('location')
+    total = data.get('total')
+    item_count = data.get('items')
+    today = date.today()
+
+    # 簡單的後端驗證
+    if not all([location, isinstance(total, (int, float)), isinstance(item_count, int)]):
+        return jsonify({'success': False, 'error': '資料格式不正確'}), 400
+        
+    try:
+        # 找到今天此據點的營業日紀錄
+        business_day = BusinessDay.query.filter_by(date=today, location=location, status='OPEN').first()
+
+        if not business_day:
+            return jsonify({'success': False, 'error': '找不到對應的營業中紀錄'}), 404
+
+        # --- 核心邏輯：更新資料庫 ---
+        # 1. 建立新的交易流水紀錄
+        new_transaction = Transaction(
+            amount=total,
+            item_count=item_count,
+            business_day_id=business_day.id
+        )
+        db.session.add(new_transaction)
+
+        # 2. 更新當日的總計數據
+        business_day.total_sales += total
+        business_day.total_items += item_count
+        business_day.total_transactions += 1
+
+        # 一次性提交所有變更
+        db.session.commit()
+
+        # 回傳成功的 JSON 響應，並附上最新的總計數據
+        return jsonify({
+            'success': True,
+            'message': '交易紀錄成功',
+            'total_sales': business_day.total_sales,
+            'total_items': business_day.total_items,
+            'total_transactions': business_day.total_transactions
+        })
+
+    except Exception as e:
+        db.session.rollback() # 如果發生任何錯誤，回滾資料庫操作
+        # 在伺服器後台印出詳細錯誤，方便除錯
+        print(f"記錄交易時發生錯誤: {e}") 
+        return jsonify({'success': False, 'error': '伺服器內部錯誤'}), 500
+    
 @bp.route('/view_report/<location>')
 @login_required
 def view_report(location):
