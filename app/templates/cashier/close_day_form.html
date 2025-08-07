@@ -30,12 +30,10 @@
                                 <td class="align-middle">NT$ {{ denom }}</td>
                                 <td>
                                     {# --- ↓↓↓ 主要修改點在這裡 ↓↓↓ --- #}
-                                    <input type="number" class="form-control form-control-lg text-center" 
-                                           name="count_{{ denom }}" min="0" value="0"
-                                           data-value="{{ denom }}" 
-                                           oninput="updateSubtotal(this)"
-                                           onfocus="handleFocus(this)"
-                                           onblur="handleBlur(this)">
+                                    <input type="number" class="form-control form-control-lg text-center"
+                                        name="count_{{ denom }}" min="0" value="0" data-value="{{ denom }}"
+                                        oninput="updateSubtotal(this)" onfocus="handleFocus(this)"
+                                        onblur="handleBlur(this)">
                                     {# --- ↑↑↑ 修改結束 ↑↑↑ --- #}
                                 </td>
                                 <td class="align-middle text-end fs-5" id="subtotal_{{ denom }}">
@@ -60,43 +58,43 @@
 </div>
 
 <script>
-// --- ↓↓↓ 請用這段新的 script 替換掉舊的 script ↓↓↓ ---
+    // --- ↓↓↓ 請用這段新的 script 替換掉舊的 script ↓↓↓ ---
 
-// 當使用者點擊輸入框時
-function handleFocus(element) {
-    if (element.value === '0') {
-        element.value = '';
+    // 當使用者點擊輸入框時
+    function handleFocus(element) {
+        if (element.value === '0') {
+            element.value = '';
+        }
     }
-}
 
-// 當使用者離開輸入框時
-function handleBlur(element) {
-    if (element.value === '') {
-        element.value = '0';
+    // 當使用者離開輸入框時
+    function handleBlur(element) {
+        if (element.value === '') {
+            element.value = '0';
+        }
+        // 確保即使在 blur 事件後，總計也能更新
+        updateGrandTotal();
     }
-    // 確保即使在 blur 事件後，總計也能更新
-    updateGrandTotal();
-}
 
-function updateSubtotal(element) {
-    const count = parseInt(element.value) || 0;
-    const value = parseInt(element.dataset.value);
-    const subtotal = count * value;
-    document.getElementById(`subtotal_${value}`).innerText = `$${subtotal.toLocaleString()}`;
-    updateGrandTotal();
-}
+    function updateSubtotal(element) {
+        const count = parseInt(element.value) || 0;
+        const value = parseInt(element.dataset.value);
+        const subtotal = count * value;
+        document.getElementById(`subtotal_${value}`).innerText = `$${subtotal.toLocaleString()}`;
+        updateGrandTotal();
+    }
 
-function updateGrandTotal() {
-    let grandTotal = 0;
-    const inputs = document.querySelectorAll('input[data-value]');
-    inputs.forEach(input => {
-        const count = parseInt(input.value) || 0;
-        const value = parseInt(input.dataset.value);
-        grandTotal += count * value;
-    });
-    document.getElementById('grand-total').innerText = `$${grandTotal.toLocaleString()}`;
-}
+    function updateGrandTotal() {
+        let grandTotal = 0;
+        const inputs = document.querySelectorAll('input[data-value]');
+        inputs.forEach(input => {
+            const count = parseInt(input.value) || 0;
+            const value = parseInt(input.dataset.value);
+            grandTotal += count * value;
+        });
+        document.getElementById('grand-total').innerText = `$${grandTotal.toLocaleString()}`;
+    }
 
-// --- ↑↑↑ 替換結束 ↑↑↑ ---
+    // --- ↑↑↑ 替換結束 ↑↑↑ ---
 </script>
 {% endblock %}

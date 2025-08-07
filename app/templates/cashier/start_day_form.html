@@ -18,15 +18,14 @@
                 <form method="POST" action="{{ url_for('cashier.start_day', location=location) }}">
                     <div class="mb-3">
                         <label for="opening_cash" class="form-label">開店準備金 (元)</label>
-                        <input type="number" class="form-control" id="opening_cash" name="opening_cash" 
-                               min="0" step="1" required 
-                               placeholder="請輸入今日準備的現金總額">
+                        <input type="number" class="form-control" id="opening_cash" name="opening_cash" min="0" step="1"
+                            required placeholder="請輸入今日準備的現金總額">
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="location_notes" class="form-label">備註 (選填)</label>
-                        <textarea class="form-control" id="location_notes" name="location_notes" rows="3" 
-                                  placeholder="例如：今日特賣會地點在三樓中庭"></textarea>
+                        <textarea class="form-control" id="location_notes" name="location_notes" rows="3"
+                            placeholder="例如：今日特賣會地點在三樓中庭"></textarea>
                     </div>
 
                     <div class="d-grid gap-2">

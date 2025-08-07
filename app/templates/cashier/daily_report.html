@@ -17,14 +17,14 @@
 
         {# ... flash 訊息區塊維持不變 ... #}
         {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                {% endfor %}
-            {% endif %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
 
         <div class="card">
@@ -50,21 +50,25 @@
                         <tr>
                             <td class="fw-bold">盤點現金合計 (B)</td>
                             <td class="text-end fw-bold" style="width: 1rem;">$</td>
-                            <td class="text-end fw-bold" style="width: 10ch;">{{ day.closing_cash | round(2) | int }}</td>
+                            <td class="text-end fw-bold" style="width: 10ch;">{{ day.closing_cash | round(2) | int }}
+                            </td>
                         </tr>
                         {# --- ↓↓↓ 這就是最終的修正點 ↓↓↓ --- #}
                         <tr class="fw-bolder">
-                            <td class="{% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}">
+                            <td
+                                class="{% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}">
                                 帳差 (B - A)
                             </td>
-                            <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}" style="width: 1rem;">
+                            <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
+                                style="width: 1rem;">
                                 $
                             </td>
-                            <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}" style="width: 10ch;">
+                            <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
+                                style="width: 10ch;">
                                 {{ 帳差 | round(2) | int }}
                             </td>
                         </tr>
-                         {# --- ↑↑↑ 修正結束 ↑↑↑ --- #}
+                        {# --- ↑↑↑ 修正結束 ↑↑↑ --- #}
                     </tbody>
                 </table>
             </div>
@@ -85,33 +89,45 @@
                 </ul>
             </div>
         </div>
-        
+
         <div class="card mt-4">
             <div class="card-header fs-5">簽核欄</div>
             <div class="card-body">
-                 <div class="row text-center">
+                <div class="row text-center">
                     <div class="col-md-4 mb-3">
                         <label class="form-label">作業員</label>
-                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input type="text" class="form-control signature-input" style="display:none;" placeholder="請在此輸入姓名"></div>
-                        <div class="mt-2"><button type="button" class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button" class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
+                                type="text" class="form-control signature-input" style="display:none;"
+                                placeholder="請在此輸入姓名"></div>
+                        <div class="mt-2"><button type="button"
+                                class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
+                                class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">覆核員</label>
-                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input type="text" class="form-control signature-input" style="display:none;" placeholder="請在此輸入姓名"></div>
-                        <div class="mt-2"><button type="button" class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button" class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
+                                type="text" class="form-control signature-input" style="display:none;"
+                                placeholder="請在此輸入姓名"></div>
+                        <div class="mt-2"><button type="button"
+                                class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
+                                class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">出納員</label>
-                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input type="text" class="form-control signature-input" style="display:none;" placeholder="請在此輸入姓名"></div>
-                        <div class="mt-2"><button type="button" class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button" class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
+                                type="text" class="form-control signature-input" style="display:none;"
+                                placeholder="請在此輸入姓名"></div>
+                        <div class="mt-2"><button type="button"
+                                class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
+                                class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
                     </div>
                 </div>
             </div>
         </div>
 
         {% if day.status != 'CLOSED' %}
-        <form method="POST" action="{{ url_for('cashier.confirm_report', location=day.location) }}" 
-              onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
+        <form method="POST" action="{{ url_for('cashier.confirm_report', location=day.location) }}"
+            onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
             <div class="d-grid mt-4">
                 <button type="submit" class="btn btn-success btn-lg">確認存檔並結束本日營業</button>
             </div>
@@ -126,46 +142,67 @@
 </div>
 
 <style>
-    .signature-container { position: relative; width: 100%; height: 150px; }
-    .signature-canvas { display: block; width: 100%; height: 150px; cursor: crosshair; }
-    .signature-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; font-size: 2rem; text-align: center; border: none; background-color: transparent; }
+    .signature-container {
+        position: relative;
+        width: 100%;
+        height: 150px;
+    }
+
+    .signature-canvas {
+        display: block;
+        width: 100%;
+        height: 150px;
+        cursor: crosshair;
+    }
+
+    .signature-input {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        font-size: 2rem;
+        text-align: center;
+        border: none;
+        background-color: transparent;
+    }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const signatureContainers = document.querySelectorAll('.signature-container');
-    signatureContainers.forEach(container => {
-        const canvas = container.querySelector('.signature-canvas');
-        const input = container.querySelector('.signature-input');
-        const toggleBtn = container.parentElement.querySelector('.toggle-btn');
-        const clearBtn = container.parentElement.querySelector('.clear-btn');
-        const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
-        function resizeCanvas() {
-            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            canvas.width = canvas.offsetWidth * ratio;
-            canvas.height = canvas.offsetHeight * ratio;
-            canvas.getContext("2d").scale(ratio, ratio);
-            signaturePad.clear();
-        }
-        window.addEventListener("resize", resizeCanvas);
-        resizeCanvas();
-        clearBtn.addEventListener('click', () => {
-            if (canvas.style.display !== 'none') { signaturePad.clear(); } else { input.value = ''; }
-        });
-        toggleBtn.addEventListener('click', () => {
-            const isCanvasVisible = canvas.style.display !== 'none';
-            if (isCanvasVisible) {
-                canvas.style.display = 'none';
-                input.style.display = 'block';
-                toggleBtn.innerText = '切換簽名';
-            } else {
-                canvas.style.display = 'block';
-                input.style.display = 'none';
-                toggleBtn.innerText = '切換打字';
-                resizeCanvas();
+    document.addEventListener('DOMContentLoaded', () => {
+        const signatureContainers = document.querySelectorAll('.signature-container');
+        signatureContainers.forEach(container => {
+            const canvas = container.querySelector('.signature-canvas');
+            const input = container.querySelector('.signature-input');
+            const toggleBtn = container.parentElement.querySelector('.toggle-btn');
+            const clearBtn = container.parentElement.querySelector('.clear-btn');
+            const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+            function resizeCanvas() {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                signaturePad.clear();
             }
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+            clearBtn.addEventListener('click', () => {
+                if (canvas.style.display !== 'none') { signaturePad.clear(); } else { input.value = ''; }
+            });
+            toggleBtn.addEventListener('click', () => {
+                const isCanvasVisible = canvas.style.display !== 'none';
+                if (isCanvasVisible) {
+                    canvas.style.display = 'none';
+                    input.style.display = 'block';
+                    toggleBtn.innerText = '切換簽名';
+                } else {
+                    canvas.style.display = 'block';
+                    input.style.display = 'none';
+                    toggleBtn.innerText = '切換打字';
+                    resizeCanvas();
+                }
+            });
         });
     });
-});
 </script>
 {% endblock %}

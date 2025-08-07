@@ -11,14 +11,14 @@
 
 {# 顯示 flash 訊息 #}
 {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
-    {% endif %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endfor %}
+{% endif %}
 {% endwith %}
 
 <div class="card">
@@ -27,13 +27,13 @@
     </div>
     <div class="card-body">
         {% if is_connected %}
-            <p class="text-success">✅ 狀態：已連結至您的 Google 帳號。</p>
-            <p>所有交易與報表資料將會自動備份至您的 Google Drive。</p>
-            <a href="{{ url_for('google.authorize') }}" class="btn btn-warning">重新授權 (更換帳號)</a>
+        <p class="text-success">✅ 狀態：已連結至您的 Google 帳號。</p>
+        <p>所有交易與報表資料將會自動備份至您的 Google Drive。</p>
+        <a href="{{ url_for('google.authorize') }}" class="btn btn-warning">重新授權 (更換帳號)</a>
         {% else %}
-            <p class="text-danger">❌ 狀態：尚未連結 Google 帳號。</p>
-            <p>請點擊下方按鈕，登入您的 Google 帳號並授權本系統存取您的 Google Drive 以啟用自動備份功能。</p>
-            <a href="{{ url_for('google.authorize') }}" class="btn btn-primary">點此連結 Google 帳號</a>
+        <p class="text-danger">❌ 狀態：尚未連結 Google 帳號。</p>
+        <p>請點擊下方按鈕，登入您的 Google 帳號並授權本系統存取您的 Google Drive 以啟用自動備份功能。</p>
+        <a href="{{ url_for('google.authorize') }}" class="btn btn-primary">點此連結 Google 帳號</a>
         {% endif %}
     </div>
 </div>
