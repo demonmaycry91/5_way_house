@@ -4,6 +4,7 @@ from ..models import User, BusinessDay, Transaction # <-- 新增匯入 BusinessD
 from .. import db, login_manager
 from datetime import date # <-- 新增匯入 date
 from flask import jsonify # <-- 請確保檔案頂部有匯入 jsonify
+import json # <-- 新增匯入 json
 
 # 1. 定義藍圖 (這是您原本就有的，保持不變)
 bp = Blueprint('cashier', __name__, url_prefix='/cashier')
@@ -206,6 +207,64 @@ def record_transaction():
         # 在伺服器後台印出詳細錯誤，方便除錯
         print(f"記錄交易時發生錯誤: {e}") 
         return jsonify({'success': False, 'error': '伺服器內部錯誤'}), 500
+
+@bp.route('/close_day/<location>', methods=['GET', 'POST'])
+@login_required
+def close_day(location):
+    """處理日結作業的現金盤點"""
+    today = date.today()
+    
+    # 找到今天此據點的營業日紀錄
+    business_day = BusinessDay.query.filter_by(date=today, location=location, status='OPEN').first()
+
+    if not business_day:
+        flash(f'據點 "{location}" 今日並非營業中狀態，無法進行日結。', 'warning')
+        return redirect(url_for('cashier.dashboard'))
+
+    # 定義台幣面額
+    denominations = [1000, 500, 200, 100, 50, 10, 5, 1]
+
+    if request.method == 'POST':
+        try:
+            total_cash_counted = 0
+            cash_breakdown = {} # 用來儲存每種面額的數量
+            
+            for denom in denominations:
+                count = request.form.get(f'count_{denom}', 0, type=int)
+                total_cash_counted += count * denom
+                cash_breakdown[denom] = count
+
+            # --- 更新資料庫 ---
+            business_day.closing_cash = total_cash_counted
+            # 將各面額數量的字典轉換為 JSON 字串儲存
+            business_day.cash_breakdown = json.dumps(cash_breakdown)
+            
+            # 將狀態從 OPEN 改為 PENDING_REPORT (等待報表確認)
+            # 這樣可以防止使用者再回到 POS 頁面新增交易
+            business_day.status = 'PENDING_REPORT'
+            
+            db.session.commit()
+
+            flash('現金盤點完成！請核對最後的每日報表。', 'success')
+            # 成功後，導向最終的報表頁面
+            return redirect(url_for('cashier.daily_report', location=location))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'處理日結時發生錯誤：{e}', 'danger')
+            return redirect(url_for('cashier.close_day', location=location))
+
+    # 如果是 GET 請求，顯示盤點表單
+    return render_template('cashier/close_day_form.html',
+                           location=location,
+                           today_date=today.strftime('%Y-%m-%d'),
+                           denominations=denominations)
+
+# 我們也需要建立一個假的 daily_report 路由，避免現在出錯
+@bp.route('/report/<location>')
+@login_required
+def daily_report(location):
+    return f"準備顯示 {location} 的最終報表..."
     
 @bp.route('/view_report/<location>')
 @login_required
