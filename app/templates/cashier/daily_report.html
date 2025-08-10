@@ -12,135 +12,131 @@
     ) }}
     
 
-<div class="row justify-content-center">
-    <div class="col-md-10 col-lg-8">
-        {# ... flash 訊息區塊維持不變 ... #}
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
+{# ... flash 訊息區塊維持不變 ... #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
 
-        <div class="card">
-            <div class="card-header fs-5">帳務核對</div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-borderless fs-5 mb-0">
-                        <tbody>
-                            <tr>
-                                <td>開店準備金</td>
-                                <td class="text-end" style="width: 1rem;">$</td>
-                                <td class="text-end" style="width: 10ch;">{{ day.opening_cash | round(2) | int }}</td>
-                            </tr>
-                            <tr>
-                                <td>本日銷售總額</td>
-                                <td class="text-end" style="width: 1rem;">$</td>
-                                <td class="text-end" style="width: 10ch;">{{ day.total_sales | round(2) | int }}</td>
-                            </tr>
-                            <tr>
-                                <td class="fw-bold">帳面總額 (A)</td>
-                                <td class="text-end fw-bold" style="width: 1rem;">$</td>
-                                <td class="text-end fw-bold" style="width: 10ch;">{{ 帳面總額 | round(2) | int }}</td>
-                            </tr>
-                            <tr>
-                                <td class="fw-bold">盤點現金合計 (B)</td>
-                                <td class="text-end fw-bold" style="width: 1rem;">$</td>
-                                <td class="text-end fw-bold" style="width: 10ch;">{{ day.closing_cash | round(2) | int }}
-                                </td>
-                            </tr>
-                            {# --- ↓↓↓ 這就是最終的修正點 ↓↓↓ --- #}
-                            <tr class="fw-bolder">
-                                <td
-                                    class="{% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}">
-                                    帳差 (B - A)
-                                </td>
-                                <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
-                                    style="width: 1rem;">
-                                    $
-                                </td>
-                                <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
-                                    style="width: 10ch;">
-                                    {{ 帳差 | round(2) | int }}
-                                </td>
-                            </tr>
-                            {# --- ↑↑↑ 修正結束 ↑↑↑ --- #}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+<div class="card">
+    <div class="card-header fs-5">帳務核對</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-borderless fs-5 mb-0">
+                <tbody>
+                    <tr>
+                        <td>開店準備金</td>
+                        <td class="text-end" style="width: 1rem;">$</td>
+                        <td class="text-end" style="width: 10ch;">{{ day.opening_cash | round(2) | int }}</td>
+                    </tr>
+                    <tr>
+                        <td>本日銷售總額</td>
+                        <td class="text-end" style="width: 1rem;">$</td>
+                        <td class="text-end" style="width: 10ch;">{{ day.total_sales | round(2) | int }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">帳面總額 (A)</td>
+                        <td class="text-end fw-bold" style="width: 1rem;">$</td>
+                        <td class="text-end fw-bold" style="width: 10ch;">{{ 帳面總額 | round(2) | int }}</td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold">盤點現金合計 (B)</td>
+                        <td class="text-end fw-bold" style="width: 1rem;">$</td>
+                        <td class="text-end fw-bold" style="width: 10ch;">{{ day.closing_cash | round(2) | int }}
+                        </td>
+                    </tr>
+                    {# --- ↓↓↓ 這就是最終的修正點 ↓↓↓ --- #}
+                    <tr class="fw-bolder">
+                        <td
+                            class="{% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}">
+                            帳差 (B - A)
+                        </td>
+                        <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
+                            style="width: 1rem;">
+                            $
+                        </td>
+                        <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
+                            style="width: 10ch;">
+                            {{ 帳差 | round(2) | int }}
+                        </td>
+                    </tr>
+                    {# --- ↑↑↑ 修正結束 ↑↑↑ --- #}
+                </tbody>
+            </table>
         </div>
-
-        <div class="card mt-4">
-            <div class="card-header fs-5">業績統計</div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
-                        交易筆數 (顧客總數)
-                        <span class="badge bg-primary rounded-pill fs-6">{{ day.total_transactions }} 筆</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
-                        銷售件數 (商品總數)
-                        <span class="badge bg-primary rounded-pill fs-6">{{ day.total_items }} 件</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header fs-5">簽核欄</div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-12 col-md-4 mb-3">
-                        <label class="form-label">作業員</label>
-                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
-                                type="text" class="form-control signature-input" style="display:none;"
-                                placeholder="請在此輸入姓名"></div>
-                        <div class="mt-2"><button type="button"
-                                class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
-                                class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
-                    </div>
-                    <div class="col-12 col-md-4 mb-3">
-                        <label class="form-label">覆核員</label>
-                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
-                                type="text" class="form-control signature-input" style="display:none;"
-                                placeholder="請在此輸入姓名"></div>
-                        <div class="mt-2"><button type="button"
-                                class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
-                                class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
-                    </div>
-                    <div class="col-12 col-md-4 mb-3">
-                        <label class="form-label">出納員</label>
-                        <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
-                                type="text" class="form-control signature-input" style="display:none;"
-                                placeholder="請在此輸入姓名"></div>
-                        <div class="mt-2"><button type="button"
-                                class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
-                                class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {% if day.status != 'CLOSED' %}
-        <form method="POST" action="{{ url_for('cashier.confirm_report', location=day.location) }}"
-            onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
-            <div class="d-grid mt-4">
-                <button type="submit" class="btn btn-success btn-lg">確認存檔並結束本日營業</button>
-            </div>
-        </form>
-        {% else %}
-        <div class="alert alert-info mt-4 text-center" role="alert">
-            本日帳務已於 {{ day.updated_at.strftime('%Y-%m-%d %H:%M') }} 歸檔，僅供查閱。<br>
-            <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-primary mt-2">返回儀表板</a>
-        </div>
-        {% endif %}
     </div>
 </div>
+
+<div class="card mt-4">
+    <div class="card-header fs-5">業績統計</div>
+    <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
+                交易筆數 (顧客總數)
+                <span class="badge bg-primary rounded-pill fs-6">{{ day.total_transactions }} 筆</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
+                銷售件數 (商品總數)
+                <span class="badge bg-primary rounded-pill fs-6">{{ day.total_items }} 件</span>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header fs-5">簽核欄</div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-12 col-md-4 mb-3">
+                <label class="form-label">作業員</label>
+                <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
+                        type="text" class="form-control signature-input" style="display:none;"
+                        placeholder="請在此輸入姓名"></div>
+                <div class="mt-2"><button type="button"
+                        class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
+                        class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+                <label class="form-label">覆核員</label>
+                <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
+                        type="text" class="form-control signature-input" style="display:none;"
+                        placeholder="請在此輸入姓名"></div>
+                <div class="mt-2"><button type="button"
+                        class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
+                        class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+                <label class="form-label">出納員</label>
+                <div class="signature-container border rounded"><canvas class="signature-canvas"></canvas><input
+                        type="text" class="form-control signature-input" style="display:none;"
+                        placeholder="請在此輸入姓名"></div>
+                <div class="mt-2"><button type="button"
+                        class="btn btn-sm btn-secondary toggle-btn">切換打字</button><button type="button"
+                        class="btn btn-sm btn-outline-danger clear-btn">清除</button></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if day.status != 'CLOSED' %}
+<form method="POST" action="{{ url_for('cashier.confirm_report', location=day.location) }}"
+    onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
+    <div class="d-grid mt-4">
+        <button type="submit" class="btn btn-success btn-lg">確認存檔並結束本日營業</button>
+    </div>
+</form>
+{% else %}
+<div class="alert alert-info mt-4 text-center" role="alert">
+    本日帳務已於 {{ day.updated_at.strftime('%Y-%m-%d %H:%M') }} 歸檔，僅供查閱。<br>
+    <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-primary mt-2">返回儀表板</a>
+</div>
+{% endif %}
 
 <style>
     .signature-container {
