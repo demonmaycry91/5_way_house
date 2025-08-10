@@ -1,117 +1,120 @@
 {% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
 
 {% block title %}銷售點終端 (POS) - {{ location }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-6 mb-3 mb-md-0">
-            <div class="card shadow-sm h-100">
-                <div class="card-body p-3 d-flex flex-column">
-                    <div class="display-area mb-3">
-                        <div id="display-expression-1" class="form-control-plaintext text-end text-muted px-2"
-                            style="height: 40px; overflow-x: auto; white-space: nowrap; font-size: 1.5rem;"></div>
-                        <div id="display-expression-2" class="form-control-plaintext text-end text-muted px-2"
-                            style="height: 40px; overflow-x: auto; white-space: nowrap; font-size: 1.5rem;"></div>
-                        <div id="display-input" class="form-control-plaintext text-end px-2"
-                            style="font-size: 2.8rem; height: 65px;">0</div>
-                        <div id="display-preview" class="form-control-plaintext text-end text-primary px-2"
-                            style="height: 30px; font-size: 1.2rem; font-weight: 500;"></div>
+{{ page_header(
+    title='POS 系統', 
+    subtitle='據點：' ~ location ~ ' | 日期：' ~ today_date, 
+    button_url=url_for('cashier.dashboard'), 
+    button_text='返回儀表板'
+    ) }}
+    
+<div class="row">
+    <div class="col-md-6 mb-3 mb-md-0">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-3 d-flex flex-column">
+                <div class="display-area mb-3">
+                    <div id="display-expression-1" class="form-control-plaintext text-end text-muted px-2"
+                        style="height: 40px; overflow-x: auto; white-space: nowrap; font-size: 1.5rem;"></div>
+                    <div id="display-expression-2" class="form-control-plaintext text-end text-muted px-2"
+                        style="height: 40px; overflow-x: auto; white-space: nowrap; font-size: 1.5rem;"></div>
+                    <div id="display-input" class="form-control-plaintext text-end px-2"
+                        style="font-size: 2.8rem; height: 65px;">0</div>
+                    <div id="display-preview" class="form-control-plaintext text-end text-primary px-2"
+                        style="height: 30px; font-size: 1.2rem; font-weight: 500;"></div>
+                </div>
+
+                <hr class="my-2">
+
+                <div class="row g-2">
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
+                            data-action="clear">C</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
+                            data-action="clearEntry">CE</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
+                            data-action="backspace">⌫</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="/">÷</button>
                     </div>
 
-                    <hr class="my-2">
-
-                    <div class="row g-2">
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
-                                data-action="clear">C</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
-                                data-action="clearEntry">CE</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
-                                data-action="backspace">⌫</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="/">÷</button>
-                        </div>
-
-                        {# ... 其他數字與運算按鈕維持不變 ... #}
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="7">7</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="8">8</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="9">9</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="*">×</button>
-                        </div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="4">4</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="5">5</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="6">6</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="-">-</button>
-                        </div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="1">1</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="2">2</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="3">3</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="+">+</button>
-                        </div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="0">0</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value="00">00</button></div>
-                        <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
-                                data-value=".">.</button></div>
-                        <div class="col-3 d-grid"><button id="equals-btn" class="btn btn-lg btn-success"
-                                data-action="equals">=</button></div>
+                    {# ... 其他數字與運算按鈕維持不變 ... #}
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="7">7</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="8">8</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="9">9</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="*">×</button>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="row align-items-center mb-3">
-                <div class="col">
-                    <h2 class="mb-0">即時業績</h2>
-                    <p class="text-muted mb-0">據點：{{ location }} | 日期：{{ today_date }}</p>
-                </div>
-                <div class="col-auto">
-                    <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-secondary">返回儀表板</a>
-                </div>
-            </div>
-
-            {# ... 右側其他卡片維持不變 ... #}
-            <div class="card text-center mb-3">
-                <div class="card-header">本日銷售總額</div>
-                <div class="card-body">
-                    <h3 class="card-title" id="total-sales">$ {{ initial_sales | int }}</h3>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-6">
-                    <div class="card text-center">
-                        <div class="card-header">本日銷售件數</div>
-                        <div class="card-body">
-                            <h3 class="card-title" id="total-items">{{ initial_items }}</h3>
-                        </div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="4">4</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="5">5</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="6">6</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="-">-</button>
                     </div>
-                </div>
-                <div class="col-6">
-                    <div class="card text-center">
-                        <div class="card-header">本日交易筆數</div>
-                        <div class="card-body">
-                            <h3 class="card-title" id="total-transactions">{{ initial_transactions }}</h3>
-                        </div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="1">1</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="2">2</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="3">3</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="+">+</button>
                     </div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="0">0</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value="00">00</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn"
+                            data-value=".">.</button></div>
+                    <div class="col-3 d-grid"><button id="equals-btn" class="btn btn-lg btn-success"
+                            data-action="equals">=</button></div>
                 </div>
-            </div>
-            <div class="d-grid mt-4">
-                <a href="{{ url_for('cashier.close_day', location=location) }}" class="btn btn-danger btn-lg">結束營業
-                    (日結)</a>
             </div>
         </div>
     </div>
+
+    <div class="col-md-6">
+        <div class="row align-items-center mb-3">
+            <div class="col">
+                <h2 class="mb-0">即時業績</h2>
+            </div>
+        </div>
+
+        {# ... 右側其他卡片維持不變 ... #}
+        <div class="card text-center mb-3">
+            <div class="card-header">本日銷售總額</div>
+            <div class="card-body">
+                <h3 class="card-title" id="total-sales">$ {{ initial_sales | int }}</h3>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-6">
+                <div class="card text-center">
+                    <div class="card-header">本日銷售件數</div>
+                    <div class="card-body">
+                        <h3 class="card-title" id="total-items">{{ initial_items }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="card text-center">
+                    <div class="card-header">本日交易筆數</div>
+                    <div class="card-body">
+                        <h3 class="card-title" id="total-transactions">{{ initial_transactions }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-grid mt-4">
+            <a href="{{ url_for('cashier.close_day', location=location) }}" class="btn btn-danger btn-lg">結束營業
+                (日結)</a>
+        </div>
+    </div>
 </div>
+
 
 <script src="{{ url_for('static', filename='js/pos_scripts.js') }}"></script>
 <script>

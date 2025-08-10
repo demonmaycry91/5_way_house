@@ -1,10 +1,32 @@
+# --- 使用方式 ---
+# 1. 需先安裝 pip-tools
+#         pip install pip-tools
+#       
+# 2. 生成 requirements.txt
+#         pip-compile requirements.in
+#       
+# 3. 安裝所有套件
+#         pip install -r requirements.txt
+
+# --- Flask 核心框架 ---
 Flask
-pytesseract
+
+# --- 資料庫相關 ---
 Flask-SQLAlchemy
 Flask-Migrate
+
+# --- 使用者驗證 ---
 Flask-Login
+
+# --- Google API 整合 ---
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+
+# --- OCR 功能 ---
+# 注意：使用 pytesseract 前，系統必須先安裝 Tesseract OCR 引擎。
+pytesseract
+
+# --- Excel 檔案處理 (用於 Google Sheets) ---
 pandas
 openpyxl

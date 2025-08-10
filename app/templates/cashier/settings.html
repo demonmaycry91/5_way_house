@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 
 {% block title %}系統設定{% endblock %}
+{% from "macros.html" import page_header with context %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="mb-0">系統設定</h2>
-    <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-secondary">返回儀表板</a>
-</div>
-
+{{ page_header(
+    title='系統設定', 
+    subtitle='管理您的營運據點與 Google Drive 整合',
+    button_url=url_for('cashier.dashboard'), 
+    button_text='返回儀表板'
+    ) }}
 
 {# 顯示 flash 訊息 #}
 {% with messages = get_flashed_messages(with_categories=true) %}

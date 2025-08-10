@@ -1,15 +1,15 @@
 {% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
 
 {% block title %}每日營運儀表板{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h2 class="mb-0">每日營運儀表板</h2>
-        <p class="text-muted">日期：{{ today_date }}</p>
-    </div>
-    <a href="{{ url_for('cashier.logout') }}" class="btn btn-outline-secondary">登出</a>
-</div>
+{{ page_header(
+    title='每日營運儀表板', 
+    subtitle='日期：' ~ today_date, 
+    button_url=url_for('cashier.logout'), 
+    button_text='登出'
+    ) }}
 
 {# 顯示 flash 訊息 #}
 {% with messages = get_flashed_messages(with_categories=true) %}

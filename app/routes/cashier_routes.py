@@ -27,6 +27,16 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+# --- Index Route ---
+
+
+@bp.route('/')
+@login_required
+def index():
+    """Cashier 功能區的根目錄，自動導向到儀表板"""
+    return redirect(url_for('cashier.dashboard'))
+
+
 # --- Dashboard ---
 
 

@@ -1,0 +1,16 @@
+{# app/templates/macros.html #}
+{% macro page_header(title, subtitle=None, button_url=None, button_text=None) %}
+<div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+    <div>
+        <h2 class="mb-0">{{ title }}</h2>
+        {% if subtitle %}
+            <p class="text-muted mb-0 mt-1">{{ subtitle }}</p>
+        {% endif %}
+    </div>
+    {% if button_url and button_text %}
+        <div>
+            <a href="{{ button_url }}" class="btn btn-outline-secondary">{{ button_text }}</a>
+        </div>
+    {% endif %}
+</div>
+{% endmacro %}
