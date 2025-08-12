@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title=form_title,
+    button_url=url_for('admin.list_locations'),
+    button_text='返回列表'
+) }}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                {# 這個表單會根據是否有傳入 location 物件，動態決定提交到 add 或 edit 路由 #}
+                <form method="POST" action="{{ url_for(request.endpoint, location_id=location.id if location else None) }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">據點名稱</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ location.name if location else '' }}" required>
+                        <div class="form-text">例如：「本舖」或「瘋衣舍」。</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="slug" class="form-label">URL Slug</label>
+                        <input type="text" class="form-control" id="slug" name="slug" value="{{ location.slug if location else '' }}" required>
+                        <div class="form-text">只能使用小寫英文、數字和連字號 (-)，例如：「main-store」或「feng-yi-she」。</div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">儲存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

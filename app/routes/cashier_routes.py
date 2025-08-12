@@ -45,12 +45,10 @@ def index():
 def dashboard():
     """
     每日營運儀表板。
-    這是使用者登入後看到的第一個頁面，也是所有操作的起點。
     """
     today = date.today()
     
     # [優化點] 不再使用硬編碼的列表，而是從資料庫動態查詢所有已建立的據點。
-    # 這樣未來新增據點時，就不需要修改程式碼。
     locations = Location.query.order_by(Location.id).all()
     
     locations_status = {}
@@ -65,16 +63,13 @@ def dashboard():
         status_info = {}
         # 根據 BusinessDay 的存在與否及其 status 欄位來決定該據點的狀態
         if business_day is None:
-            # 如果找不到紀錄，表示今天尚未開帳
             status_info = {
                 "status_text": "尚未開帳",
                 "message": "點擊以開始本日營業作業。",
                 "badge_class": "bg-secondary",
-                # [優化點] 在 url_for 中使用 location_slug=location.slug 來產生新的 URL
                 "url": url_for("cashier.start_day", location_slug=location.slug),
             }
         elif business_day.status == "OPEN":
-            # 狀態為 OPEN，表示正在營業中
             status_info = {
                 "status_text": "營業中",
                 "message": f"本日銷售額: ${business_day.total_sales:,.0f}",
@@ -82,7 +77,6 @@ def dashboard():
                 "url": url_for("cashier.pos", location_slug=location.slug),
             }
         elif business_day.status == "PENDING_REPORT":
-            # 狀態為 PENDING_REPORT，表示已結束營業但報表待確認
             status_info = {
                 "status_text": "待確認報表",
                 "message": "點擊以檢視並確認本日報表。",
@@ -90,7 +84,6 @@ def dashboard():
                 "url": url_for("cashier.daily_report", location_slug=location.slug),
             }
         elif business_day.status == "CLOSED":
-            # 狀態為 CLOSED，表示本日已日結歸檔
             status_info = {
                 "status_text": "已日結",
                 "message": "本日帳務已結算，僅供查閱。",
@@ -98,7 +91,6 @@ def dashboard():
                 "url": url_for("cashier.daily_report", location_slug=location.slug),
             }
         
-        # 將處理好的狀態資訊存入字典，key 是整個 location 物件
         locations_status[location] = status_info
         
     return render_template(

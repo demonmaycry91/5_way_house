@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}據點管理{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title='據點管理',
+    button_url=url_for('admin.add_location'),
+    button_text='新增據點'
+) }}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>據點名稱</th>
+                    <th>URL Slug</th>
+                    <th class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for location in locations %}
+                <tr>
+                    <td>{{ location.id }}</td>
+                    <td>{{ location.name }}</td>
+                    <td><code>{{ location.slug }}</code></td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.edit_location', location_id=location.id) }}" class="btn btn-sm btn-warning">編輯</a>
+                        <form action="{{ url_for('admin.delete_location', location_id=location.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除據點 \'{{ location.name }}\' 嗎？此操作無法復原。');">
+                            <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">目前沒有任何據點。</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
