@@ -17,23 +17,28 @@
     <div class="col-md-8 col-lg-6">
         <div class="card">
             <div class="card-body">
-                {# [修改點] 這個表單將會提交到 start_day 路由。
-                我們使用 location.slug 來產生對應的 URL，例如 /cashier/start_day/main-store #}
-                <form method="POST" action="{{ url_for('cashier.start_day', location_slug=location.slug) }}">
+                <form method="POST" action="" novalidate>
+                    {# [關鍵修正] 插入 CSRF token #}
+                    {{ form.hidden_tag() }}
+
                     <div class="mb-3">
-                        <label for="opening_cash" class="form-label">開店準備金 (元)</label>
-                        <input type="number" class="form-control" id="opening_cash" name="opening_cash" min="0" step="1"
-                            required placeholder="請輸入今日準備的現金總額">
+                        {{ form.opening_cash.label(class="form-label") }}
+                        {% for error in form.opening_cash.errors %}
+                            <span class="text-danger d-block">{{ error }}</span>
+                        {% endfor %}
+                        {{ form.opening_cash(class="form-control", placeholder="請輸入今日準備的現金總額") }}
                     </div>
 
                     <div class="mb-3">
-                        <label for="location_notes" class="form-label">備註 (選填)</label>
-                        <textarea class="form-control" id="location_notes" name="location_notes" rows="3"
-                            placeholder="例如：今日特賣會地點在三樓中庭"></textarea>
+                        {{ form.location_notes.label(class="form-label") }}
+                        {% for error in form.location_notes.errors %}
+                            <span class="text-danger d-block">{{ error }}</span>
+                        {% endfor %}
+                        {{ form.location_notes(class="form-control", rows="3", placeholder="例如：今日特賣會地點在三樓中庭") }}
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg">確認開始營業</button>
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
                     </div>
                 </form>
             </div>

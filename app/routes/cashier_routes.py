@@ -13,7 +13,8 @@ from flask import (
 from flask_login import login_user, logout_user, login_required, current_user
 # 匯入我們新建立的 Location 模型
 from ..models import User, BusinessDay, Transaction, Location
-from .. import db, login_manager
+from .. import db, login_manager, csrf
+from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm
 from datetime import date, datetime
 from ..services import google_service
 import threading
@@ -106,9 +107,12 @@ def login():
     """處理使用者登入。"""
     if current_user.is_authenticated:
         return redirect(url_for("cashier.dashboard"))
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+    
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
         user_from_db = User.query.filter_by(username=username).first()
         if user_from_db is None or not user_from_db.check_password(password):
             flash("帳號或密碼錯誤，請重新輸入。", "danger")
@@ -117,7 +121,21 @@ def login():
         flash("登入成功！", "success")
         next_page = request.args.get("next")
         return redirect(next_page or url_for("cashier.dashboard"))
-    return render_template("cashier/login.html")
+    
+    return render_template("cashier/login.html", form=form)
+    
+    # if request.method == "POST":
+    #     username = request.form.get("username")
+    #     password = request.form.get("password")
+    #     user_from_db = User.query.filter_by(username=username).first()
+    #     if user_from_db is None or not user_from_db.check_password(password):
+    #         flash("帳號或密碼錯誤，請重新輸入。", "danger")
+    #         return redirect(url_for("cashier.login"))
+    #     login_user(user_from_db)
+    #     flash("登入成功！", "success")
+    #     next_page = request.args.get("next")
+    #     return redirect(next_page or url_for("cashier.dashboard"))
+    # return render_template("cashier/login.html")
 
 
 @bp.route("/logout")
@@ -154,37 +172,58 @@ def start_day(location_slug):
     if existing_day:
         flash(f'據點 "{location.name}" 今日已開帳或已日結，無法重複操作。', "warning")
         return redirect(url_for("cashier.dashboard"))
-        
-    if request.method == "POST":
-        try:
-            opening_cash = request.form.get("opening_cash", type=float)
-            location_notes = request.form.get("location_notes")
-            if opening_cash is None or opening_cash < 0:
-                flash("開店準備金格式不正確或小於 0，請重新輸入。", "danger")
-                return redirect(url_for("cashier.start_day", location_slug=location.slug))
-            
-            # 建立 BusinessDay 紀錄時，直接傳入 location 物件
-            new_business_day = BusinessDay(
-                date=today,
-                location=location, # SQLAlchemy 會自動處理關聯，將 location.id 存入 location_id 欄位
-                location_notes=location_notes,
-                status="OPEN",
-                opening_cash=opening_cash,
-            )
-            db.session.add(new_business_day)
-            db.session.commit()
-            flash(f'據點 "{location.name}" 開店成功！現在可以開始記錄交易。', "success")
-            return redirect(url_for("cashier.pos", location_slug=location.slug))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"處理開店作業時發生錯誤：{e}", "danger")
-            return redirect(url_for("cashier.start_day", location_slug=location.slug))
+
+    form = StartDayForm()
+    if form.validate_on_submit():
+        new_business_day = BusinessDay(
+            date=today,
+            location=location,
+            location_notes=form.location_notes.data,
+            status="OPEN",
+            opening_cash=form.opening_cash.data,
+        )
+        db.session.add(new_business_day)
+        db.session.commit()
+        flash(f'據點 "{location.name}" 開店成功！現在可以開始記錄交易。', "success")
+        return redirect(url_for("cashier.pos", location_slug=location.slug))
             
     return render_template(
         "cashier/start_day_form.html",
-        location=location, # 將整個 location 物件傳遞到樣板
+        location=location,
         today_date=today.strftime("%Y-%m-%d"),
+        form=form
     )
+    
+    # if request.method == "POST":
+    #     try:
+    #         opening_cash = request.form.get("opening_cash", type=float)
+    #         location_notes = request.form.get("location_notes")
+    #         if opening_cash is None or opening_cash < 0:
+    #             flash("開店準備金格式不正確或小於 0，請重新輸入。", "danger")
+    #             return redirect(url_for("cashier.start_day", location_slug=location.slug))
+            
+    #         # 建立 BusinessDay 紀錄時，直接傳入 location 物件
+    #         new_business_day = BusinessDay(
+    #             date=today,
+    #             location=location, # SQLAlchemy 會自動處理關聯，將 location.id 存入 location_id 欄位
+    #             location_notes=location_notes,
+    #             status="OPEN",
+    #             opening_cash=opening_cash,
+    #         )
+    #         db.session.add(new_business_day)
+    #         db.session.commit()
+    #         flash(f'據點 "{location.name}" 開店成功！現在可以開始記錄交易。', "success")
+    #         return redirect(url_for("cashier.pos", location_slug=location.slug))
+    #     except Exception as e:
+    #         db.session.rollback()
+    #         flash(f"處理開店作業時發生錯誤：{e}", "danger")
+    #         return redirect(url_for("cashier.start_day", location_slug=location.slug))
+            
+    # return render_template(
+    #     "cashier/start_day_form.html",
+    #     location=location, # 將整個 location 物件傳遞到樣板
+    #     today_date=today.strftime("%Y-%m-%d"),
+    # )
 
 
 # --- POS ---
@@ -214,6 +253,7 @@ def pos(location_slug):
 
 # --- Record Transaction API ---
 @bp.route("/record_transaction", methods=["POST"])
+@csrf.exempt  # 這個 API 端點不需要 CSRF 保護，因為它是由前端 JavaScript 呼叫的
 @login_required
 def record_transaction():
     """
@@ -294,9 +334,11 @@ def close_day(location_slug):
     if not business_day:
         flash(f'據點 "{location.name}" 今日並非營業中狀態，無法進行日結。', "warning")
         return redirect(url_for("cashier.dashboard"))
-        
+
+    form = CloseDayForm()    
     denominations = [1000, 500, 200, 100, 50, 10, 5, 1]
-    if request.method == "POST":
+
+    if form.validate_on_submit():
         try:
             total_cash_counted = 0
             cash_breakdown = {}
@@ -320,7 +362,34 @@ def close_day(location_slug):
         location=location,
         today_date=today.strftime("%Y-%m-%d"),
         denominations=denominations,
+        form=form
     )
+
+    # if request.method == "POST":
+    #     try:
+    #         total_cash_counted = 0
+    #         cash_breakdown = {}
+    #         for denom in denominations:
+    #             count = request.form.get(f"count_{denom}", 0, type=int)
+    #             total_cash_counted += count * denom
+    #             cash_breakdown[denom] = count
+    #         business_day.closing_cash = total_cash_counted
+    #         business_day.cash_breakdown = json.dumps(cash_breakdown)
+    #         business_day.status = "PENDING_REPORT"
+    #         db.session.commit()
+    #         flash("現金盤點完成！請核對最後的每日報表。", "success")
+    #         return redirect(url_for("cashier.daily_report", location_slug=location.slug))
+    #     except Exception as e:
+    #         db.session.rollback()
+    #         flash(f"處理日結時發生錯誤：{e}", "danger")
+    #         return redirect(url_for("cashier.close_day", location_slug=location.slug))
+            
+    # return render_template(
+    #     "cashier/close_day_form.html",
+    #     location=location,
+    #     today_date=today.strftime("%Y-%m-%d"),
+    #     denominations=denominations,
+    # )
 
 
 # --- Daily Report ---
@@ -346,11 +415,14 @@ def daily_report(location_slug):
     expected_total = opening_cash + total_sales
     difference = closing_cash - expected_total
     
+    form = ConfirmReportForm()
+    
     return render_template(
         "cashier/daily_report.html",
-        day=business_day, # 直接傳遞 business_day 物件，樣板可以透過 day.location.name 取得據點名稱
+        day=business_day,
         帳面總額=expected_total,
         帳差=difference,
+        form=form  # <-- 將 form 物件傳遞到樣板
     )
 
 
@@ -370,37 +442,45 @@ def confirm_report(location_slug):
         flash("找不到待確認的報表，或該報表已被確認。", "warning")
         return redirect(url_for("cashier.dashboard"))
 
-    try:
-        business_day.status = "CLOSED"
-        business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
-        business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
-        db.session.commit()
+    # [修改點 3] 在處理 POST 請求前，先驗證表單
+    form = ConfirmReportForm()
+    if form.validate_on_submit():
+        # 如果 CSRF token 驗證通過，才執行後續的歸檔邏輯
+        try:
+            business_day.status = "CLOSED"
+            business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+            business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
+            db.session.commit()
 
-        # 背景任務處理 Google Sheets (維持不變)
-        header = ["日期", "據點", "開店準備金", "本日銷售總額", "帳面總額", "盤點現金合計", "帳差", "交易筆數", "銷售件數"]
-        report_data = [
-            business_day.date.strftime("%Y-%m-%d"),
-            business_day.location.name, # 使用 business_day.location.name
-            business_day.opening_cash,
-            business_day.total_sales,
-            business_day.expected_cash,
-            business_day.closing_cash,
-            business_day.cash_diff,
-            business_day.total_transactions,
-            business_day.total_items,
-        ]
-        # 將任務加入隊列
-        # current_app.task_queue 就是我們在 __init__.py 中建立的 RQ 隊列物件
-        # 第一個參數是要執行的函式，後續的 args 是要傳遞給該函式的參數
-        current_app.task_queue.enqueue(
-            'app.services.google_service.write_transaction_to_sheet_task',
-            args=(location.name, transaction_data, header),
-            job_timeout='10m' # 設定任務最長執行時間
-        )
+            # 背景任務處理 Google Sheets (維持不變)
+            header = ["日期", "據點", "開店準備金", "本日銷售總額", "帳面總額", "盤點現金合計", "帳差", "交易筆數", "銷售件數"]
+            report_data = [
+                business_day.date.strftime("%Y-%m-%d"),
+                business_day.location.name, # 使用 business_day.location.name
+                business_day.opening_cash,
+                business_day.total_sales,
+                business_day.expected_cash,
+                business_day.closing_cash,
+                business_day.cash_diff,
+                business_day.total_transactions,
+                business_day.total_items,
+            ]
+            # 將任務加入隊列
+            # current_app.task_queue 就是我們在 __init__.py 中建立的 RQ 隊列物件
+            # 第一個參數是要執行的函式，後續的 args 是要傳遞給該函式的參數
+            current_app.task_queue.enqueue(
+                'app.services.google_service.write_transaction_to_sheet_task',
+                args=(location.name, transaction_data, header),
+                job_timeout='10m' # 設定任務最長執行時間
+            )
 
-        flash(f'據點 "{location.name}" 本日營業已成功歸檔！正在背景同步至雲端...', "success")
-        return redirect(url_for("cashier.dashboard"))
-    except Exception as e:
-        db.session.rollback()
-        flash(f"歸檔時發生錯誤：{e}", "danger")
-        return redirect(url_for("cashier.daily_report", location_slug=location.slug))
+            flash(f'據點 "{location.name}" 本日營業已成功歸檔！正在背景同步至雲端...', "success")
+            return redirect(url_for("cashier.dashboard"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"歸檔時發生錯誤：{e}", "danger")
+            return redirect(url_for("cashier.daily_report", location_slug=location.slug))
+    
+    # 如果 CSRF token 驗證失敗，顯示錯誤訊息並導回原頁面
+    flash('無效的操作請求，請重試。', 'danger')
+    return redirect(url_for('cashier.daily_report', location_slug=location.slug))

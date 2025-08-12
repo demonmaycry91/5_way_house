@@ -40,3 +40,4 @@ openpyxl
 python-dotenv
 redis
 rq
+Flask-WTF

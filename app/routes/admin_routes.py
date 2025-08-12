@@ -5,6 +5,7 @@ from flask_login import login_required
 from ..models import Location
 from .. import db
 import re
+from ..forms import LocationForm
 
 # 建立名為 'admin' 的藍圖，並設定 URL 前綴為 /admin
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -29,28 +30,47 @@ def list_locations():
 @login_required
 def add_location():
     """處理新增據點的頁面和邏輯。"""
-    if request.method == 'POST':
-        name = request.form.get('name')
-        slug = request.form.get('slug')
-
-        if not name or not slug:
-            flash('據點名稱和 Slug 皆為必填欄位。', 'danger')
-            return render_template('admin/location_form.html', form_title='新增據點')
+    form = LocationForm()
+    if form.validate_on_submit():
+        name = form.name.data
+        slug = form.slug.data
 
         # 檢查名稱或 slug 是否已存在
         if Location.query.filter((Location.name == name) | (Location.slug == slug)).first():
             flash('據點名稱或 Slug 已存在，請使用不同的名稱。', 'danger')
-            return render_template('admin/location_form.html', form_title='新增據點', name=name, slug=slug)
         
-        # 建立新的 Location 物件並存入資料庫
-        new_location = Location(name=name, slug=slug)
-        db.session.add(new_location)
-        db.session.commit()
-        
-        flash(f'據點 "{name}" 已成功新增！', 'success')
-        return redirect(url_for('admin.list_locations'))
+        else:
+            # 建立新的 Location 物件並存入資料庫
+            new_location = Location(name=name, slug=slug)
+            db.session.add(new_location)
+            db.session.commit()
+            flash(f'據點 "{name}" 已成功新增！', 'success')
+            return redirect(url_for('admin.list_locations'))
+    
+    return render_template('admin/location_form.html', form=form, form_title='新增據點')
 
-    return render_template('admin/location_form.html', form_title='新增據點')
+    # if request.method == 'POST':
+    #     name = request.form.get('name')
+    #     slug = request.form.get('slug')
+
+    #     if not name or not slug:
+    #         flash('據點名稱和 Slug 皆為必填欄位。', 'danger')
+    #         return render_template('admin/location_form.html', form_title='新增據點')
+
+    #     # 檢查名稱或 slug 是否已存在
+    #     if Location.query.filter((Location.name == name) | (Location.slug == slug)).first():
+    #         flash('據點名稱或 Slug 已存在，請使用不同的名稱。', 'danger')
+    #         return render_template('admin/location_form.html', form_title='新增據點', name=name, slug=slug)
+        
+    #     # 建立新的 Location 物件並存入資料庫
+    #     new_location = Location(name=name, slug=slug)
+    #     db.session.add(new_location)
+    #     db.session.commit()
+        
+    #     flash(f'據點 "{name}" 已成功新增！', 'success')
+    #     return redirect(url_for('admin.list_locations'))
+
+    # return render_template('admin/location_form.html', form_title='新增據點')
 
 
 @bp.route('/locations/<int:location_id>/edit', methods=['GET', 'POST'])
@@ -59,28 +79,26 @@ def edit_location(location_id):
     """處理編輯現有據點的頁面和邏輯。"""
     location = Location.query.get_or_404(location_id)
 
-    if request.method == 'POST':
-        name = request.form.get('name')
-        slug = request.form.get('slug')
+    form = LocationForm(obj=location)
+    if form.validate_on_submit():
+        name = form.name.data
+        slug = form.slug.data
 
-        if not name or not slug:
-            flash('據點名稱和 Slug 皆為必填欄位。', 'danger')
-            return render_template('admin/location_form.html', form_title='編輯據點', location=location)
-
-        # 檢查新名稱或 slug 是否與其他據點衝突
+        # 檢查名稱或 slug 是否已存在，排除當前編輯的據點
         existing_location = Location.query.filter(Location.id != location_id, (Location.name == name) | (Location.slug == slug)).first()
         if existing_location:
             flash('據點名稱或 Slug 已被其他據點使用。', 'danger')
-            return render_template('admin/location_form.html', form_title='編輯據點', location=location)
+        else:
+            # 更新據點資料
+            location.name = name
+            location.slug = slug
+            db.session.commit()  
+            flash(f'據點 "{name}" 已成功更新！', 'success')
+            return redirect(url_for('admin.list_locations'))
+    
+    return render_template('admin/location_form.html', form=form, form_title='編輯據點', location=location)
 
-        location.name = name
-        location.slug = slug
-        db.session.commit()
-        
-        flash(f'據點 "{name}" 已成功更新！', 'success')
-        return redirect(url_for('admin.list_locations'))
 
-    return render_template('admin/location_form.html', form_title='編輯據點', location=location)
 
 
 @bp.route('/locations/<int:location_id>/delete', methods=['POST'])

@@ -6,8 +6,10 @@ import os
 from dotenv import load_dotenv
 from redis import Redis
 import rq
+from flask_wtf.csrf import CSRFProtect
 
 load_dotenv()
+csrf = CSRFProtect()
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -36,6 +38,7 @@ def create_app():
     app.task_queue = rq.Queue('cashier-tasks', connection=app.redis)
 
     # 初始化資料庫等擴充套件
+    csrf.init_app(app)
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)

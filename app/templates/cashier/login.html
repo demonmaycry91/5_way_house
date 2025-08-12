@@ -21,17 +21,20 @@
 
         <div class="card">
             <div class="card-body">
-                <form method="POST" action="{{ url_for('cashier.login') }}" novalidate>
+                <form method="POST" action="" novalidate>
+                    {# 這是最重要的部分：插入 CSRF token #}
+                    {{ form.hidden_tag() }}
+
                     <div class="mb-3">
-                        <label for="username" class="form-label">帳號</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control") }}
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">密碼</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control") }}
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">登入</button>
+                        {{ form.submit(class="btn btn-primary") }}
                     </div>
                 </form>
             </div>

@@ -13,7 +13,9 @@
 
 <div class="card">
     <div class="card-body">
-        <form method="POST" action="{{ url_for('cashier.close_day', location_slug=location.slug) }}">
+        <form method="POST" action="" novalidate>
+            {# 這是最重要的部分：插入 CSRF token #}
+            {{ form.hidden_tag() }}
             <table class="table table-borderless">
                 <thead>
                     <tr>
