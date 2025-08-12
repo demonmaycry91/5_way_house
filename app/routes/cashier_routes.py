@@ -18,6 +18,9 @@ from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm
 from datetime import date, datetime
 from ..services import google_service
 import threading
+from flask import Response
+from weasyprint import HTML
+
 
 # 建立名為 'cashier' 的藍圖
 bp = Blueprint("cashier", __name__, url_prefix="/cashier")
@@ -405,6 +408,7 @@ def daily_report(location_slug):
         BusinessDay.location_id == location.id,
         BusinessDay.status.in_(["PENDING_REPORT", "CLOSED"]),
     ).first()
+
     if not business_day:
         flash(f'找不到據點 "{location.name}" 今日的日結報表資料。', "warning")
         return redirect(url_for("cashier.dashboard"))
@@ -447,6 +451,10 @@ def confirm_report(location_slug):
     if form.validate_on_submit():
         # 如果 CSRF token 驗證通過，才執行後續的歸檔邏輯
         try:
+            business_day.signature_operator = request.form.get('sig_operator')
+            business_day.signature_reviewer = request.form.get('sig_reviewer')
+            business_day.signature_cashier = request.form.get('sig_cashier')
+            
             business_day.status = "CLOSED"
             business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
             business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
@@ -475,7 +483,8 @@ def confirm_report(location_slug):
             )
 
             flash(f'據點 "{location.name}" 本日營業已成功歸檔！正在背景同步至雲端...', "success")
-            return redirect(url_for("cashier.dashboard"))
+            # return redirect(url_for("cashier.dashboard"))
+            return redirect(url_for("cashier.daily_report", location_slug=location.slug))
         except Exception as e:
             db.session.rollback()
             flash(f"歸檔時發生錯誤：{e}", "danger")
@@ -484,3 +493,51 @@ def confirm_report(location_slug):
     # 如果 CSRF token 驗證失敗，顯示錯誤訊息並導回原頁面
     flash('無效的操作請求，請重試。', 'danger')
     return redirect(url_for('cashier.daily_report', location_slug=location.slug))
+
+
+# --- PDF Report Generation ---
+@bp.route("/report/<location_slug>/print", methods=['POST'])
+@login_required
+def print_report(location_slug):
+    """產生並回傳每日報表的 PDF 檔案。"""
+    location = Location.query.filter_by(slug=location_slug).first_or_404()
+    today = date.today()
+    business_day = BusinessDay.query.filter(
+        BusinessDay.date == today,
+        BusinessDay.location_id == location.id,
+    ).first_or_404()
+
+    # 計算報表所需的財務數據
+    closing_cash = business_day.closing_cash or 0
+    opening_cash = business_day.opening_cash or 0
+    total_sales = business_day.total_sales or 0
+    expected_total = opening_cash + total_sales
+    difference = closing_cash - expected_total
+
+    # 從 POST 表單中接收簽名資料
+    signatures = {
+        'operator': request.form.get('sig_operator'),
+        'reviewer': request.form.get('sig_reviewer'),
+        'cashier': request.form.get('sig_cashier'),
+    }
+
+    # 渲染專為列印設計的 HTML 樣板
+    html_to_render = render_template(
+        "cashier/report_print.html",
+        day=business_day,
+        帳面總額=expected_total,
+        帳差=difference,
+        signatures=signatures
+    )
+
+    # 使用 WeasyPrint 將渲染後的 HTML 轉換為 PDF
+    pdf = HTML(string=html_to_render).write_pdf()
+
+    # 建立一個 Flask Response 物件，並設定正確的 header，讓瀏覽器觸發下載
+    return Response(
+        pdf,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment;filename=daily_report_{location.slug}_{today.strftime('%Y%m%d')}.pdf"
+        }
+    )

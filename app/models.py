@@ -69,6 +69,11 @@ class BusinessDay(db.Model):
     # 現金盤點明細 (以 JSON 格式的字串儲存)
     cash_breakdown = db.Column(db.Text, nullable=True)
 
+    # 新增三個 Text 欄位，用來儲存簽名圖片的 Base64 資料或使用者輸入的文字
+    signature_operator = db.Column(db.Text, nullable=True)
+    signature_reviewer = db.Column(db.Text, nullable=True)
+    signature_cashier = db.Column(db.Text, nullable=True)
+
     # 建立與交易紀錄的一對多關聯
     transactions = db.relationship(
         'Transaction', backref='business_day', lazy=True)

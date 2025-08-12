@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>每日報表 - {{ day.location.name }} - {{ day.date.strftime('%Y-%m-%d') }}</title>
+    {# 引入 Bootstrap 的 CSS 以便使用其網格和表格樣式 #}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    {# 引入我們剛建立的列印專用 CSS #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center">每日營運報表</h1>
+        <p class="text-center text-muted">據點：{{ day.location.name }} | 日期：{{ day.date.strftime('%Y-%m-%d') }}</p>
+        
+        <hr>
+
+        {# --- 帳務核對 --- #}
+        <h3 class="mt-4">帳務核對</h3>
+        <table class="table table-bordered">
+            <tbody>
+                <tr>
+                    <td style="width: 70%;">開店準備金</td>
+                    <td class="text-end">${{ day.opening_cash | round(2) | int }}</td>
+                </tr>
+                <tr>
+                    <td>本日銷售總額</td>
+                    <td class="text-end">${{ day.total_sales | round(2) | int }}</td>
+                </tr>
+                <tr class="fw-bold">
+                    <td>帳面總額 (A)</td>
+                    <td class="text-end">${{ 帳面總額 | round(2) | int }}</td>
+                </tr>
+                <tr class="fw-bold">
+                    <td>盤點現金合計 (B)</td>
+                    <td class="text-end">${{ day.closing_cash | round(2) | int }}</td>
+                </tr>
+                <tr class="fw-bolder">
+                    <td>帳差 (B - A)</td>
+                    <td class="text-end {% if 帳差 < 0 %}text-danger{% endif %}">
+                        ${{ 帳差 | round(2) | int }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        {# --- 業績統計 --- #}
+        <h3 class="mt-4">業績統計</h3>
+        <table class="table table-bordered">
+            <tbody>
+                <tr>
+                    <td style="width: 70%;">交易筆數 (顧客總數)</td>
+                    <td class="text-end">{{ day.total_transactions }} 筆</td>
+                </tr>
+                <tr>
+                    <td>銷售件數 (商品總數)</td>
+                    <td class="text-end">{{ day.total_items }} 件</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {# --- 簽核欄 --- #}
+        <h3 class="mt-5">簽核欄</h3>
+        <div class="row text-center mt-3">
+            <div class="col-4">
+                <p>作業員</p>
+                {# 如果有傳入簽名圖片資料，就顯示它 #}
+                {% if signatures.operator %}
+                    <img src="{{ signatures.operator }}" class="signature-img">
+                {% else %}
+                    <div style="height: 100px; border-bottom: 1px solid #000;"></div>
+                {% endif %}
+            </div>
+            <div class="col-4">
+                <p>覆核員</p>
+                {% if signatures.reviewer %}
+                    <img src="{{ signatures.reviewer }}" class="signature-img">
+                {% else %}
+                    <div style="height: 100px; border-bottom: 1px solid #000;"></div>
+                {% endif %}
+            </div>
+            <div class="col-4">
+                <p>出納員</p>
+                {% if signatures.cashier %}
+                    <img src="{{ signatures.cashier }}" class="signature-img">
+                {% else %}
+                    <div style="height: 100px; border-bottom: 1px solid #000;"></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

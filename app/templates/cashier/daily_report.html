@@ -143,23 +143,34 @@
     </div>
 </div>
 
-{% if day.status != 'CLOSED' %}
-    {# --- [關鍵修正] --- #}
-    {# 將 action="" 修改為指向正確的 confirm_report 路由 #}
-    <form method="POST" action="{{ url_for('cashier.confirm_report', location_slug=(day.location.slug or day.location)) }}" novalidate
-        onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
-        
-        {# 插入 CSRF token，這是解決問題的核心 #}
+{# --- [最終修改] --- #}
+{# 根據營業日狀態，顯示不同的操作按鈕 #}
+{% if day.status == 'PENDING_REPORT' %}
+    {# 狀態為「待確認」時，顯示「確認存檔」按鈕 #}
+    <form id="confirm-form" method="POST" action="{{ url_for('cashier.confirm_report', location_slug=(day.location.slug or day.location)) }}" novalidate onsubmit="return confirm('請注意：確認後本日所有帳務將被鎖定，無法再進行任何修改。確定要結束本日營業嗎？');">
         {{ form.hidden_tag() }}
-
+        {# 加入隱藏欄位來存放簽名資料 #}
+        <input type="hidden" name="sig_operator" id="sig-data-operator">
+        <input type="hidden" name="sig_reviewer" id="sig-data-reviewer">
+        <input type="hidden" name="sig_cashier" id="sig-data-cashier">
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-success btn-lg">確認存檔並結束本日營業</button>
         </div>
     </form>
-{% else %}
+
+{% elif day.status == 'CLOSED' %}
+    {# 狀態為「已歸檔」時，顯示提示訊息和「下載 PDF」按鈕 #}
     <div class="alert alert-info mt-4 text-center" role="alert">
-        本日帳務已於 {{ day.updated_at.strftime('%Y-%m-%d %H:%M') }} 歸檔，僅供查閱。<br>
-        <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-primary mt-2">返回儀表板</a>
+        本日帳務已於 {{ day.updated_at.strftime('%Y-%m-%d %H:%M') }} 歸檔，僅供查閱。
+    </div>
+    <form id="print-form" method="POST" action="{{ url_for('cashier.print_report', location_slug=(day.location.slug or day.location)) }}" target="_blank">
+        {{ form.hidden_tag() }}
+        <div class="d-grid mt-2">
+            <button type="submit" class="btn btn-info btn-lg">下載 PDF 報表</button>
+        </div>
+    </form>
+    <div class="d-grid mt-2">
+         <a href="{{ url_for('cashier.dashboard') }}" class="btn btn-secondary btn-lg">返回儀表板</a>
     </div>
 {% endif %}
 

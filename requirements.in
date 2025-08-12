@@ -41,3 +41,4 @@ python-dotenv
 redis
 rq
 Flask-WTF
+WeasyPrint

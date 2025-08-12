@@ -1,0 +1,33 @@
+/* app/static/css/print.css */
+
+/* 使用 @media print 規則，確保這些樣式只在列印或產生 PDF 時生效 */
+@media print {
+    /* 隱藏不需要的元素 */
+    body > nav,               /* 隱藏頂部導覽列 */
+    .btn,                     /* 隱藏所有按鈕 */
+    form,                     /* 隱藏表單 */
+    .alert,                   /* 隱藏提示訊息 */
+    .page-header-button,      /* 隱藏我們宏中的按鈕 div (需要稍後加入 class) */
+    .no-print {               /* 一個通用的 class，方便我們隱藏任何不想列印的東西 */
+        display: none !important;
+    }
+
+    /* 基礎樣式重設 */
+    body {
+        font-size: 12pt;
+        background-color: #fff;
+    }
+
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid; /* 避免卡片在列印時被從中間切斷 */
+    }
+
+    /* 確保簽名圖片能正確顯示 */
+    .signature-img {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #ccc;
+    }
+}
