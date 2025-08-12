@@ -258,12 +258,14 @@ def record_transaction():
         # 背景任務處理 Google Sheets (維持不變)
         header = ["時間戳", "金額", "品項數"]
         transaction_data = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), total, item_count]
-        app_context = current_app.app_context()
-        thread = threading.Thread(
-            target=google_service.write_transaction_to_sheet,
-            args=(app_context, location.name, transaction_data, header), # 傳遞 location.name 給 Google Service
+        # 將任務加入隊列
+        # current_app.task_queue 就是我們在 __init__.py 中建立的 RQ 隊列物件
+        # 第一個參數是要執行的函式，後續的 args 是要傳遞給該函式的參數
+        current_app.task_queue.enqueue(
+            'app.services.google_service.write_transaction_to_sheet_task',
+            args=(location.name, transaction_data, header),
+            job_timeout='10m' # 設定任務最長執行時間
         )
-        thread.start()
 
         return jsonify({
             "success": True,
@@ -387,12 +389,14 @@ def confirm_report(location_slug):
             business_day.total_transactions,
             business_day.total_items,
         ]
-        app_context = current_app.app_context()
-        thread = threading.Thread(
-            target=google_service.write_report_to_sheet,
-            args=(app_context, location.name, report_data, header), # 傳遞 location.name 給 Google Service
+        # 將任務加入隊列
+        # current_app.task_queue 就是我們在 __init__.py 中建立的 RQ 隊列物件
+        # 第一個參數是要執行的函式，後續的 args 是要傳遞給該函式的參數
+        current_app.task_queue.enqueue(
+            'app.services.google_service.write_transaction_to_sheet_task',
+            args=(location.name, transaction_data, header),
+            job_timeout='10m' # 設定任務最長執行時間
         )
-        thread.start()
 
         flash(f'據點 "{location.name}" 本日營業已成功歸檔！正在背景同步至雲端...', "success")
         return redirect(url_for("cashier.dashboard"))

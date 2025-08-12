@@ -1,11 +1,19 @@
-# my_app/services/google_service.py (最終修正版)
+# app/services/google_service.py (循環匯入修正版)
 
 import os
+# --- [關鍵修正 1] ---
+# 不再從 run.py 匯入 app，而是從 app 套件的 __init__.py 匯入 create_app 工廠函式
+from app import create_app
 from flask import current_app
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from datetime import datetime
+
+# --- [關鍵修正 2] ---
+# 呼叫工廠函式，為這個模組 (也就是背景 Worker) 建立一個獨立的 app 實例
+# 這樣背景任務就可以透過這個 app 實例來建立自己的應用程式上下文 (app_context)
+# app = create_app()
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -15,6 +23,7 @@ REPORTS_FOLDER_NAME = "Cashier_System_Reports"
 
 
 def get_google_creds():
+    # 這個函式內的 current_app 會在 app_context 中被正確解析
     token_file = os.path.join(current_app.instance_path, "token.json")
     creds = None
     if os.path.exists(token_file):
@@ -26,10 +35,10 @@ def get_google_creds():
                 with open(token_file, "w") as token:
                     token.write(creds.to_json())
             except Exception as e:
-                print(f"!!! 刷新 Google 憑證失敗: {e}")
+                app.logger.error(f"!!! 刷新 Google 憑證失敗: {e}")
                 return None
         else:
-            print("!!! 找不到有效的 Google 憑證檔案。")
+            app.logger.warning("!!! 找不到有效的 Google 憑證檔案。")
             return None
     return creds
 
@@ -82,8 +91,6 @@ def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, locatio
     if files:
         return files[0].get("id")
     else:
-        # --- ↓↓↓ 這就是我們的修正點 ↓↓↓ ---
-        # 1. 先建立試算表 (不指定 parents)
         spreadsheet_metadata = {"properties": {"title": file_name}}
         spreadsheet = (
             sheets_service.spreadsheets()
@@ -91,9 +98,8 @@ def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, locatio
             .execute()
         )
         spreadsheet_id = spreadsheet.get("spreadsheetId")
-        print(f"成功建立新的試算表: {file_name} (ID: {spreadsheet_id})")
+        app.logger.info(f"成功建立新的試算表: {file_name} (ID: {spreadsheet_id})")
 
-        # 2. 再用 Drive API 將檔案移動到指定資料夾
         file = (
             drive_service.files().get(fileId=spreadsheet_id, fields="parents").execute()
         )
@@ -104,9 +110,8 @@ def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, locatio
             removeParents=previous_parents,
             fields="id, parents",
         ).execute()
-        print(f"成功將試算表移動至資料夾 ID: {folder_id}")
+        app.logger.info(f"成功將試算表移動至資料夾 ID: {folder_id}")
         return spreadsheet_id
-        # --- ↑↑↑ 修正結束 ↑↑↑ ---
 
 
 def ensure_sheet_with_header_exists(
@@ -121,7 +126,7 @@ def ensure_sheet_with_header_exists(
     )
 
     if not sheet_exists:
-        print(f"工作表 '{sheet_name}' 不存在，正在建立並寫入標題...")
+        app.logger.info(f"工作表 '{sheet_name}' 不存在，正在建立並寫入標題...")
         requests = [{"addSheet": {"properties": {"title": sheet_name}}}]
         sheets_service.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id, body={"requests": requests}
@@ -134,7 +139,7 @@ def ensure_sheet_with_header_exists(
             valueInputOption="USER_ENTERED",
             body=header_body,
         ).execute()
-        print(f"成功為 '{sheet_name}' 寫入標題列")
+        app.logger.info(f"成功為 '{sheet_name}' 寫入標題列")
 
 
 def append_data(sheets_service, spreadsheet_id, sheet_name, data_row):
@@ -146,24 +151,26 @@ def append_data(sheets_service, spreadsheet_id, sheet_name, data_row):
         insertDataOption="INSERT_ROWS",
         body=body,
     ).execute()
-    print(f"成功將資料附加到 '{sheet_name}'")
+    app.logger.info(f"成功將資料附加到 '{sheet_name}'")
 
 
-def write_transaction_to_sheet(app_context, location, transaction_data, header_row):
-    """【主要呼叫函式】將單筆交易寫入 Google Sheet (設計為可在背景執行緒中運作)"""
-    with app_context:
+def write_transaction_to_sheet_task(location_name, transaction_data, header_row):
+    """【背景任務】將單筆交易寫入 Google Sheet。"""
+    # --- [最終修正 3] ---
+    # 在任務執行時，才建立 app 並推入其上下文
+    app = create_app()
+    with app.app_context():
         try:
             drive_service, sheets_service = get_services()
             if not drive_service:
                 return
 
-            folder_id = find_or_create_folder(
-                drive_service, REPORTS_FOLDER_NAME)
+            folder_id = find_or_create_folder(drive_service, REPORTS_FOLDER_NAME)
             if not folder_id:
                 return
 
             spreadsheet_id = find_or_create_spreadsheet(
-                drive_service, sheets_service, folder_id, location
+                drive_service, sheets_service, folder_id, location_name
             )
             if not spreadsheet_id:
                 return
@@ -176,24 +183,24 @@ def write_transaction_to_sheet(app_context, location, transaction_data, header_r
                 sheets_service, spreadsheet_id, month_sheet_name, transaction_data
             )
         except Exception as e:
-            print(f"!!! [背景任務] 寫入交易紀錄到 Google Sheet 時發生嚴重錯誤: {e}")
+            current_app.logger.error(f"!!! [背景任務] 寫入交易紀錄到 Google Sheet 時發生嚴重錯誤: {e}")
 
 
-def write_report_to_sheet(app_context, location, report_data, header_row):
-    """【主要呼叫函式】將每日摘要寫入 Google Sheet (設計為可在背景執行緒中運作)"""
-    with app_context:
+def write_report_to_sheet_task(location_name, report_data, header_row):
+    """【背景任務】將每日摘要寫入 Google Sheet。"""
+    app = create_app()
+    with app.app_context():
         try:
             drive_service, sheets_service = get_services()
             if not drive_service:
                 return
 
-            folder_id = find_or_create_folder(
-                drive_service, REPORTS_FOLDER_NAME)
+            folder_id = find_or_create_folder(drive_service, REPORTS_FOLDER_NAME)
             if not folder_id:
                 return
 
             spreadsheet_id = find_or_create_spreadsheet(
-                drive_service, sheets_service, folder_id, location
+                drive_service, sheets_service, folder_id, location_name
             )
             if not spreadsheet_id:
                 return
@@ -202,7 +209,6 @@ def write_report_to_sheet(app_context, location, report_data, header_row):
             ensure_sheet_with_header_exists(
                 sheets_service, spreadsheet_id, summary_sheet_name, header_row
             )
-            append_data(sheets_service, spreadsheet_id,
-                        summary_sheet_name, report_data)
+            append_data(sheets_service, spreadsheet_id, summary_sheet_name, report_data)
         except Exception as e:
-            print(f"!!! [背景任務] 寫入每日摘要到 Google Sheet 時發生嚴重錯誤: {e}")
+            current_app.logger.error(f"!!! [背景任務] 寫入每日摘要到 Google Sheet 時發生嚴重錯誤: {e}")

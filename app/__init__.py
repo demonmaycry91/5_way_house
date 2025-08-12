@@ -4,43 +4,38 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 import os
 from dotenv import load_dotenv
+from redis import Redis
+import rq
 
-# 載入 .env 檔案中的環境變數
 load_dotenv()
 
-# 建立 SQLAlchemy 和 Migrate 的實例
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 login_manager.login_view = 'cashier.login'
 
-
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
-    # --- [關鍵修正] ---
-    # 我們不再依賴 .env 中的 DATABASE_URL，而是以程式碼來確保路徑永遠正確。
-
-    # 1. 確保 'instance' 資料夾存在。
-    #    app.instance_path 會自動找到專案根目錄旁的 instance 文件夾的絕對路徑。
+    # 從 .env 讀取設定
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-fallback-secret-key')
+    
+    # 設定資料庫 URI
     try:
         os.makedirs(app.instance_path)
     except OSError:
-        pass # 如果資料夾已存在，就略過
-
-    # 2. 根據 instance_path 動態建立資料庫檔案的絕對路徑
+        pass
     db_path = os.path.join(app.instance_path, 'app.db')
-
-    # 3. 使用這個絕對路徑來設定資料庫 URI
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    
-    # 從 .env 讀取 SECRET_KEY
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-fallback-secret-key')
-    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # 從 .env 讀取 Redis URL 並建立連線
+    app.config['REDIS_URL'] = os.getenv('REDIS_URL', 'redis://')
+    # 建立 Redis 連線物件和 RQ 任務隊列物件，並將它們附加到 app 物件上
+    app.redis = Redis.from_url(app.config['REDIS_URL'])
+    app.task_queue = rq.Queue('cashier-tasks', connection=app.redis)
 
-
-    # --- 初始化資料庫 ---
+    # 初始化資料庫等擴充套件
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
@@ -53,10 +48,7 @@ def create_app():
     app.register_blueprint(google_routes.bp)
     app.register_blueprint(admin_routes.bp)
 
-    # 在此匯入模型，確保 Flask-Migrate 可以偵測到它們
     from . import models
-
-    # 註冊指令
     from . import auth_commands
     auth_commands.init_app(app)
 

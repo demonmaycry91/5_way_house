@@ -38,3 +38,5 @@ pandas
 openpyxl
 
 python-dotenv
+redis
+rq
