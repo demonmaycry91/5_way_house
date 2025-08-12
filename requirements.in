@@ -1,44 +1,68 @@
-# --- 使用方式 ---
-# 1. 需先安裝 pip-tools
-#         pip install pip-tools
-#       
-# 2. 生成 requirements.txt
-#         pip-compile requirements.in
-#       
-# 3. 安裝所有套件
-#         pip install -r requirements.txt
+# ==============================================================================
+# 專案依賴管理 (requirements.in)
+# ------------------------------------------------------------------------------
+# 這個檔案是專案 Python 依賴的核心來源。我們使用 pip-tools 來管理環境，
+# 其核心理念是只維護最上層的直接依賴 (本檔案)，然後讓工具自動解析並
+# 鎖定所有底層的子依賴 (requirements.txt)。
+# 這樣做可以確保每個開發者的環境都 100% 一致，避免「在我電腦上可以跑」的問題。
+# ==============================================================================
+
+# --- 主要工作流程 ---
+# 1. (僅需一次) 安裝 pip-tools
+#    pip install pip-tools
 #
-# 4. 確保虛擬環境中的套件與 requirements.txt 中的套件一致
-#         pip-sync
-# 
-# 5. 若有新增套件，請將其加入 requirements.in 中，然後重複步驟 2-4。
+# 2. (當本檔案變更時) 編譯依賴清單
+#    pip-compile requirements.in
+#    (此指令會讀取本檔案，並產生一個包含所有套件精確版本的 requirements.txt)
+#
+# 3. 安裝/更新所有套件
+#    pip install -r requirements.txt
+#    (此指令會根據 requirements.txt 中鎖定的版本安裝所有套件)
+#
+# 4. (選用但推薦) 同步環境
+#    pip-sync
+#    (此指令會移除您虛擬環境中，所有 requirements.txt 未列出的多餘套件)
+#
+# --- 常用操作 ---
+# 新增套件：
+#   1. 將新的套件名稱加入到下方的分類列表中。
+#   2. 依序執行步驟 2, 3, 4。
+#
+# 升級特定套件 (例如 flask)：
+#   1. 執行 pip-compile requirements.in --upgrade-package flask
+#   2. 依序執行步驟 3, 4。
+#
+# 升級所有套件：
+#   1. 執行 pip-compile requirements.in --upgrade
+#   2. 依序執行步驟 3, 4。(注意：此操作風險較高，建議在升級後進行完整測試)
 
+# --- Flask 核心框架與擴充套件 ---
+Flask                    # Web 應用程式的核心框架
+Flask-SQLAlchemy         # 透過 ORM (物件關聯對映) 的方式操作資料庫
+Flask-Migrate            # 管理資料庫結構變更 (Migration) 的工具，基於 Alembic
+Flask-Login              # 處理使用者登入、登出和 session 管理
+Flask-WTF                # 整合 WTForms，提供安全的網頁表單處理、驗證和 CSRF 保護
 
-# --- Flask 核心框架 ---
-Flask
+# --- 設定管理 ---
+python-dotenv            # 從 .env 檔案中讀取環境變數，實現設定與程式碼的分離
 
-# --- 資料庫相關 ---
-Flask-SQLAlchemy
-Flask-Migrate
-
-# --- 使用者驗證 ---
-Flask-Login
+# --- 背景任務與隊列 ---
+redis                    # Redis 資料庫的 Python 客戶端，為 RQ 提供儲存後端
+rq                       # Redis Queue (RQ)，一個簡單高效的 Python 背景任務隊列函式庫
 
 # --- Google API 整合 ---
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+google-api-python-client # Google 官方的 API Python 客戶端
+google-auth-httplib2     # Google 驗證函式庫的 httplib2 傳輸層
+google-auth-oauthlib     # 處理 OAuth 2.0 流程，讓使用者能授權應用程式
 
-# --- OCR 功能 ---
-# 注意：使用 pytesseract 前，系統必須先安裝 Tesseract OCR 引擎。
-pytesseract
+# --- PDF 產生 ---
+# 注意：使用 WeasyPrint 前，系統必須先安裝 Pango, Cairo 等圖形函式庫
+WeasyPrint               # 將 HTML 和 CSS 轉換為 PDF 的函式庫，用於產生報表
 
-# --- Excel 檔案處理 (用於 Google Sheets) ---
-pandas
-openpyxl
+# --- OCR 功能 (光學字元辨識) ---
+# 注意：使用 pytesseract 前，系統必須先安裝 Tesseract OCR 引擎
+pytesseract              # Tesseract OCR 引擎的 Python 封裝
 
-python-dotenv
-redis
-rq
-Flask-WTF
-WeasyPrint
+# --- 資料處理 (主要用於 Google Sheets) ---
+pandas                   # 強大的資料分析和操作函式庫
+openpyxl                 # 讀寫 Excel .xlsx 檔案的函式庫
