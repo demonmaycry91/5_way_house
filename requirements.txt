@@ -101,6 +101,8 @@ pytesseract==0.3.13
     # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via pandas
+python-dotenv==1.1.1
+    # via -r requirements.in
 pytz==2025.2
     # via pandas
 requests==2.32.4

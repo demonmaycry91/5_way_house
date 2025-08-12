@@ -1,51 +1,56 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy  # <-- 新增
-from flask_migrate import Migrate      # <-- 新增
-from flask_login import LoginManager  # <-- 新增
-import os  # <-- 新增
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_login import LoginManager
+import os
+from dotenv import load_dotenv
+
+# 載入 .env 檔案中的環境變數
+load_dotenv()
 
 # 建立 SQLAlchemy 和 Migrate 的實例
 db = SQLAlchemy()
 migrate = Migrate()
-login_manager = LoginManager()  # <-- 新增
-# 設定未登入時會被導向的頁面
-login_manager.login_view = 'cashier.login'  # <-- 'cashier'是藍圖名稱, 'login'是路由函式名稱
+login_manager = LoginManager()
+login_manager.login_view = 'cashier.login'
 
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
-    # --- 資料庫設定 ---
-    # 從 instance/config.py 載入設定，如果檔案不存在則忽略
-    app.config.from_pyfile('config.py', silent=True)
+    # --- [關鍵修正] ---
+    # 我們不再依賴 .env 中的 DATABASE_URL，而是以程式碼來確保路徑永遠正確。
 
-    # 設定資料庫的路徑
-    # app.instance_path 會指向專案根目錄下的 'instance' 資料夾
-    # 我們的資料庫檔案 app.db 將會被建立在那裡
-    # 增加一個 SECRET_KEY，這是 Flask session 功能所必需的
-    app.config['SECRET_KEY'] = 'a-very-secret-key-that-you-should-change'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + \
-        os.path.join(app.instance_path, 'app.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-    # 確保 'instance' 資料夾存在
+    # 1. 確保 'instance' 資料夾存在。
+    #    app.instance_path 會自動找到專案根目錄旁的 instance 文件夾的絕對路徑。
     try:
         os.makedirs(app.instance_path)
     except OSError:
-        pass  # 如果資料夾已存在，就略過
+        pass # 如果資料夾已存在，就略過
+
+    # 2. 根據 instance_path 動態建立資料庫檔案的絕對路徑
+    db_path = os.path.join(app.instance_path, 'app.db')
+
+    # 3. 使用這個絕對路徑來設定資料庫 URI
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    
+    # 從 .env 讀取 SECRET_KEY
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-fallback-secret-key')
+    
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
     # --- 初始化資料庫 ---
     db.init_app(app)
     migrate.init_app(app, db)
-    login_manager.init_app(app)  # <-- 新增，初始化 login_manager
+    login_manager.init_app(app)
 
     # 註冊藍圖
-    # <-- 新增匯入 google_routes
     from .routes import main_routes, ocr_routes, cashier_routes, google_routes
     app.register_blueprint(main_routes.bp)
     app.register_blueprint(ocr_routes.bp)
     app.register_blueprint(cashier_routes.bp)
-    app.register_blueprint(google_routes.bp)  # <-- 新增，註冊 Google OAuth 路由
+    app.register_blueprint(google_routes.bp)
 
     # 在此匯入模型，確保 Flask-Migrate 可以偵測到它們
     from . import models

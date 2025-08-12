@@ -7,6 +7,12 @@
 #       
 # 3. 安裝所有套件
 #         pip install -r requirements.txt
+#
+# 4. 確保虛擬環境中的套件與 requirements.txt 中的套件一致
+#         pip-sync
+# 
+# 5. 若有新增套件，請將其加入 requirements.in 中，然後重複步驟 2-4。
+
 
 # --- Flask 核心框架 ---
 Flask
@@ -30,3 +36,5 @@ pytesseract
 # --- Excel 檔案處理 (用於 Google Sheets) ---
 pandas
 openpyxl
+
+python-dotenv
