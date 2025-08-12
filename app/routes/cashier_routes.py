@@ -1,5 +1,3 @@
-# my_app/routes/cashier_routes.py (最終完整版)
-
 import os
 import json
 from flask import (
@@ -13,73 +11,96 @@ from flask import (
     current_app,
 )
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User, BusinessDay, Transaction
+# 匯入我們新建立的 Location 模型
+from ..models import User, BusinessDay, Transaction, Location
 from .. import db, login_manager
-from datetime import date, datetime  # <--- [修正點] 已確保 datetime 被正確匯入
+from datetime import date, datetime
 from ..services import google_service
-import threading  # <--- [修正點] 已確保 threading 被正確匯入
+import threading
 
+# 建立名為 'cashier' 的藍圖
 bp = Blueprint("cashier", __name__, url_prefix="/cashier")
 
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Flask-Login 需要這個函式來根據 session 中的 user_id 重新載入使用者物件。"""
     return User.query.get(int(user_id))
 
-
-# --- Index Route ---
-
-
+# --- 統一入口 ---
 @bp.route('/')
 @login_required
 def index():
-    """Cashier 功能區的根目錄，自動導向到儀表板"""
+    """
+    Cashier 功能區的根目錄。
+    為了提供更好的使用者體驗，我們不顯示任何頁面，而是自動將使用者重新導向到他們最常用的儀表板頁面。
+    這確保了 /cashier 永遠是一個有效的進入點。
+    """
     return redirect(url_for('cashier.dashboard'))
 
 
 # --- Dashboard ---
-
-
 @bp.route("/dashboard")
 @login_required
 def dashboard():
+    """
+    每日營運儀表板。
+    這是使用者登入後看到的第一個頁面，也是所有操作的起點。
+    """
     today = date.today()
-    LOCATIONS = ["本舖", "瘋衣舍", "特賣會1", "特賣會2", "其他"]
+    
+    # [優化點] 不再使用硬編碼的列表，而是從資料庫動態查詢所有已建立的據點。
+    # 這樣未來新增據點時，就不需要修改程式碼。
+    locations = Location.query.order_by(Location.id).all()
+    
     locations_status = {}
-    for location_name in LOCATIONS:
+    
+    # 遍歷從資料庫中取得的每一個 location 物件
+    for location in locations:
+        # 根據今天的日期和 location 的 id 來查詢對應的 BusinessDay 紀錄
         business_day = BusinessDay.query.filter_by(
-            date=today, location=location_name
+            date=today, location_id=location.id
         ).first()
+        
         status_info = {}
+        # 根據 BusinessDay 的存在與否及其 status 欄位來決定該據點的狀態
         if business_day is None:
+            # 如果找不到紀錄，表示今天尚未開帳
             status_info = {
                 "status_text": "尚未開帳",
                 "message": "點擊以開始本日營業作業。",
                 "badge_class": "bg-secondary",
-                "url": url_for("cashier.start_day", location=location_name),
+                # [優化點] 在 url_for 中使用 location_slug=location.slug 來產生新的 URL
+                "url": url_for("cashier.start_day", location_slug=location.slug),
             }
         elif business_day.status == "OPEN":
+            # 狀態為 OPEN，表示正在營業中
             status_info = {
                 "status_text": "營業中",
                 "message": f"本日銷售額: ${business_day.total_sales:,.0f}",
                 "badge_class": "bg-success",
-                "url": url_for("cashier.pos", location=location_name),
+                "url": url_for("cashier.pos", location_slug=location.slug),
             }
         elif business_day.status == "PENDING_REPORT":
+            # 狀態為 PENDING_REPORT，表示已結束營業但報表待確認
             status_info = {
                 "status_text": "待確認報表",
                 "message": "點擊以檢視並確認本日報表。",
                 "badge_class": "bg-warning text-dark",
-                "url": url_for("cashier.daily_report", location=location_name),
+                "url": url_for("cashier.daily_report", location_slug=location.slug),
             }
         elif business_day.status == "CLOSED":
+            # 狀態為 CLOSED，表示本日已日結歸檔
             status_info = {
                 "status_text": "已日結",
                 "message": "本日帳務已結算，僅供查閱。",
                 "badge_class": "bg-primary",
-                "url": url_for("cashier.daily_report", location=location_name),
+                "url": url_for("cashier.daily_report", location_slug=location.slug),
             }
-        locations_status[location_name] = status_info
+        
+        # 將處理好的狀態資訊存入字典，key 是整個 location 物件
+        locations_status[location] = status_info
+        
     return render_template(
         "cashier/dashboard.html",
         today_date=today.strftime("%Y-%m-%d"),
@@ -88,10 +109,9 @@ def dashboard():
 
 
 # --- Login / Logout ---
-
-
 @bp.route("/login", methods=["GET", "POST"])
 def login():
+    """處理使用者登入。"""
     if current_user.is_authenticated:
         return redirect(url_for("cashier.dashboard"))
     if request.method == "POST":
@@ -111,79 +131,88 @@ def login():
 @bp.route("/logout")
 @login_required
 def logout():
+    """處理使用者登出。"""
     logout_user()
     flash("您已成功登出。", "info")
     return redirect(url_for("cashier.login"))
 
 
 # --- Settings ---
-
-
 @bp.route("/settings")
 @login_required
 def settings():
+    """系統設定頁面，主要用於管理 Google 帳號的連結狀態。"""
     token_path = os.path.join(current_app.instance_path, "token.json")
     is_connected = os.path.exists(token_path)
     return render_template("cashier/settings.html", is_connected=is_connected)
 
 
 # --- Start Day ---
-
-
-@bp.route("/start_day/<location>", methods=["GET", "POST"])
+# [優化點] 路由參數從 <location> 改為 <location_slug>
+@bp.route("/start_day/<location_slug>", methods=["GET", "POST"])
 @login_required
-def start_day(location):
+def start_day(location_slug):
+    """開店作業頁面。"""
+    # 透過傳入的 slug 從資料庫中查詢對應的 Location 物件，如果找不到則回傳 404 錯誤
+    location = Location.query.filter_by(slug=location_slug).first_or_404()
     today = date.today()
-    existing_day = BusinessDay.query.filter_by(
-        date=today, location=location).first()
+    
+    # 查詢時使用 location.id 來確保唯一性
+    existing_day = BusinessDay.query.filter_by(date=today, location_id=location.id).first()
     if existing_day:
-        flash(f'據點 "{location}" 今日已開帳或已日結，無法重複操作。', "warning")
+        flash(f'據點 "{location.name}" 今日已開帳或已日結，無法重複操作。', "warning")
         return redirect(url_for("cashier.dashboard"))
+        
     if request.method == "POST":
         try:
             opening_cash = request.form.get("opening_cash", type=float)
             location_notes = request.form.get("location_notes")
             if opening_cash is None or opening_cash < 0:
                 flash("開店準備金格式不正確或小於 0，請重新輸入。", "danger")
-                return redirect(url_for("cashier.start_day", location=location))
+                return redirect(url_for("cashier.start_day", location_slug=location.slug))
+            
+            # 建立 BusinessDay 紀錄時，直接傳入 location 物件
             new_business_day = BusinessDay(
                 date=today,
-                location=location,
+                location=location, # SQLAlchemy 會自動處理關聯，將 location.id 存入 location_id 欄位
                 location_notes=location_notes,
                 status="OPEN",
                 opening_cash=opening_cash,
             )
             db.session.add(new_business_day)
             db.session.commit()
-            flash(f'據點 "{location}" 開店成功！現在可以開始記錄交易。', "success")
-            return redirect(url_for("cashier.pos", location=location))
+            flash(f'據點 "{location.name}" 開店成功！現在可以開始記錄交易。', "success")
+            return redirect(url_for("cashier.pos", location_slug=location.slug))
         except Exception as e:
             db.session.rollback()
             flash(f"處理開店作業時發生錯誤：{e}", "danger")
-            return redirect(url_for("cashier.start_day", location=location))
+            return redirect(url_for("cashier.start_day", location_slug=location.slug))
+            
     return render_template(
         "cashier/start_day_form.html",
-        location=location,
+        location=location, # 將整個 location 物件傳遞到樣板
         today_date=today.strftime("%Y-%m-%d"),
     )
 
 
 # --- POS ---
-
-
-@bp.route("/pos/<location>")
+# [優化點] 路由參數從 <location> 改為 <location_slug>
+@bp.route("/pos/<location_slug>")
 @login_required
-def pos(location):
+def pos(location_slug):
+    """銷售點終端 (POS) 頁面。"""
+    location = Location.query.filter_by(slug=location_slug).first_or_404()
     today = date.today()
     business_day = BusinessDay.query.filter_by(
-        date=today, location=location, status="OPEN"
+        date=today, location_id=location.id, status="OPEN"
     ).first()
     if not business_day:
-        flash(f'據點 "{location}" 今日尚未開店營業。', "warning")
+        flash(f'據點 "{location.name}" 今日尚未開店營業。', "warning")
         return redirect(url_for("cashier.dashboard"))
+        
     return render_template(
         "cashier/pos.html",
-        location=location,
+        location=location, # 將整個 location 物件傳遞到樣板
         today_date=today.strftime("%Y-%m-%d"),
         initial_sales=business_day.total_sales,
         initial_items=business_day.total_items,
@@ -192,31 +221,35 @@ def pos(location):
 
 
 # --- Record Transaction API ---
-
-
 @bp.route("/record_transaction", methods=["POST"])
 @login_required
 def record_transaction():
-    """接收前端 AJAX 請求，記錄一筆新交易，並在背景同步到 Google Sheets"""
+    """
+    接收前端 AJAX 請求，記錄一筆新交易。
+    這是一個 API 端點，只回傳 JSON 格式的資料。
+    """
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "沒有收到資料"}), 400
 
-    location = data.get("location")
+    # [優化點] 從前端接收 location_slug 而不是中文名稱
+    location_slug = data.get("location")
     total = data.get("total")
     item_count = data.get("items")
     today = date.today()
 
-    if not all(
-        [location, isinstance(total, (int, float)),
-         isinstance(item_count, int)]
-    ):
+    if not all([location_slug, isinstance(total, (int, float)), isinstance(item_count, int)]):
         return jsonify({"success": False, "error": "資料格式不正確"}), 400
 
     try:
-        # 1. 更新本地資料庫 (這一步很快)
+        # 透過 slug 找到對應的 location 物件
+        location = Location.query.filter_by(slug=location_slug).first()
+        if not location:
+            return jsonify({"success": False, "error": "無效的據點識別碼"}), 404
+
+        # 使用 location.id 查詢 BusinessDay
         business_day = BusinessDay.query.filter_by(
-            date=today, location=location, status="OPEN"
+            date=today, location_id=location.id, status="OPEN"
         ).first()
         if not business_day:
             return jsonify({"success": False, "error": "找不到對應的營業中紀錄"}), 404
@@ -230,52 +263,44 @@ def record_transaction():
         business_day.total_transactions += 1
         db.session.commit()
 
-        # 2. 準備好要傳給背景任務的資料
+        # 背景任務處理 Google Sheets (維持不變)
         header = ["時間戳", "金額", "品項數"]
-        transaction_data = [
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            total,
-            item_count,
-        ]
+        transaction_data = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), total, item_count]
         app_context = current_app.app_context()
-
-        # 3. 建立並啟動背景執行緒去處理 Google Sheets 的慢速任務
         thread = threading.Thread(
             target=google_service.write_transaction_to_sheet,
-            args=(app_context, location, transaction_data, header),
+            args=(app_context, location.name, transaction_data, header), # 傳遞 location.name 給 Google Service
         )
         thread.start()
 
-        # 4. 立刻回傳成功響應給前端，讓網頁立即更新！
-        return jsonify(
-            {
-                "success": True,
-                "message": "交易紀錄成功",
-                "total_sales": business_day.total_sales,
-                "total_items": business_day.total_items,
-                "total_transactions": business_day.total_transactions,
-            }
-        )
-
+        return jsonify({
+            "success": True,
+            "message": "交易紀錄成功",
+            "total_sales": business_day.total_sales,
+            "total_items": business_day.total_items,
+            "total_transactions": business_day.total_transactions,
+        })
     except Exception as e:
         db.session.rollback()
-        print(f"記錄交易時發生錯誤: {e}")
+        current_app.logger.error(f"記錄交易時發生錯誤: {e}")
         return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
 
 
 # --- Close Day ---
-
-
-@bp.route("/close_day/<location>", methods=["GET", "POST"])
+# [優化點] 路由參數從 <location> 改為 <location_slug>
+@bp.route("/close_day/<location_slug>", methods=["GET", "POST"])
 @login_required
-def close_day(location):
+def close_day(location_slug):
+    """日結作業 - 現金盤點頁面。"""
+    location = Location.query.filter_by(slug=location_slug).first_or_404()
     today = date.today()
     business_day = BusinessDay.query.filter_by(
-        date=today, location=location, status="OPEN"
+        date=today, location_id=location.id, status="OPEN"
     ).first()
     if not business_day:
-        flash(f'據點 "{location}" 今日並非營業中狀態，無法進行日結。', "warning")
+        flash(f'據點 "{location.name}" 今日並非營業中狀態，無法進行日結。', "warning")
         return redirect(url_for("cashier.dashboard"))
+        
     denominations = [1000, 500, 200, 100, 50, 10, 5, 1]
     if request.method == "POST":
         try:
@@ -290,11 +315,12 @@ def close_day(location):
             business_day.status = "PENDING_REPORT"
             db.session.commit()
             flash("現金盤點完成！請核對最後的每日報表。", "success")
-            return redirect(url_for("cashier.daily_report", location=location))
+            return redirect(url_for("cashier.daily_report", location_slug=location.slug))
         except Exception as e:
             db.session.rollback()
             flash(f"處理日結時發生錯誤：{e}", "danger")
-            return redirect(url_for("cashier.close_day", location=location))
+            return redirect(url_for("cashier.close_day", location_slug=location.slug))
+            
     return render_template(
         "cashier/close_day_form.html",
         location=location,
@@ -304,43 +330,46 @@ def close_day(location):
 
 
 # --- Daily Report ---
-
-
-@bp.route("/report/<location>")
+# [優化點] 路由參數從 <location> 改為 <location_slug>
+@bp.route("/report/<location_slug>")
 @login_required
-def daily_report(location):
+def daily_report(location_slug):
+    """每日報表檢視頁面。"""
+    location = Location.query.filter_by(slug=location_slug).first_or_404()
     today = date.today()
     business_day = BusinessDay.query.filter(
         BusinessDay.date == today,
-        BusinessDay.location == location,
+        BusinessDay.location_id == location.id,
         BusinessDay.status.in_(["PENDING_REPORT", "CLOSED"]),
     ).first()
     if not business_day:
-        flash(f'找不到據點 "{location}" 今日的日結報表資料。', "warning")
+        flash(f'找不到據點 "{location.name}" 今日的日結報表資料。', "warning")
         return redirect(url_for("cashier.dashboard"))
+        
     closing_cash = business_day.closing_cash or 0
     opening_cash = business_day.opening_cash or 0
     total_sales = business_day.total_sales or 0
     expected_total = opening_cash + total_sales
     difference = closing_cash - expected_total
+    
     return render_template(
         "cashier/daily_report.html",
-        day=business_day,
+        day=business_day, # 直接傳遞 business_day 物件，樣板可以透過 day.location.name 取得據點名稱
         帳面總額=expected_total,
         帳差=difference,
     )
 
 
 # --- Confirm Report ---
-
-
-@bp.route("/confirm_report/<location>", methods=["POST"])
+# [優化點] 路由參數從 <location> 改為 <location_slug>
+@bp.route("/confirm_report/<location_slug>", methods=["POST"])
 @login_required
-def confirm_report(location):
-    """處理最終確認，將本日營業正式結束，並在背景將摘要同步到 Google Sheets"""
+def confirm_report(location_slug):
+    """最終確認報表，將本日營業正式歸檔。"""
+    location = Location.query.filter_by(slug=location_slug).first_or_404()
     today = date.today()
     business_day = BusinessDay.query.filter_by(
-        date=today, location=location, status="PENDING_REPORT"
+        date=today, location_id=location.id, status="PENDING_REPORT"
     ).first()
 
     if not business_day:
@@ -348,31 +377,16 @@ def confirm_report(location):
         return redirect(url_for("cashier.dashboard"))
 
     try:
-        # 1. 更新本地資料庫
         business_day.status = "CLOSED"
-        business_day.expected_cash = (business_day.opening_cash or 0) + (
-            business_day.total_sales or 0
-        )
-        business_day.cash_diff = (
-            business_day.closing_cash or 0
-        ) - business_day.expected_cash
+        business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+        business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
         db.session.commit()
 
-        # 2. 準備好要傳給背景任務的資料
-        header = [
-            "日期",
-            "據點",
-            "開店準備金",
-            "本日銷售總額",
-            "帳面總額",
-            "盤點現金合計",
-            "帳差",
-            "交易筆數",
-            "銷售件數",
-        ]
+        # 背景任務處理 Google Sheets (維持不變)
+        header = ["日期", "據點", "開店準備金", "本日銷售總額", "帳面總額", "盤點現金合計", "帳差", "交易筆數", "銷售件數"]
         report_data = [
             business_day.date.strftime("%Y-%m-%d"),
-            business_day.location,
+            business_day.location.name, # 使用 business_day.location.name
             business_day.opening_cash,
             business_day.total_sales,
             business_day.expected_cash,
@@ -382,19 +396,15 @@ def confirm_report(location):
             business_day.total_items,
         ]
         app_context = current_app.app_context()
-
-        # 3. 建立並啟動背景執行緒
         thread = threading.Thread(
             target=google_service.write_report_to_sheet,
-            args=(app_context, location, report_data, header),
+            args=(app_context, location.name, report_data, header), # 傳遞 location.name 給 Google Service
         )
         thread.start()
 
-        # 4. 立刻回傳成功響應給前端
-        flash(f'據點 "{location}" 本日營業已成功歸檔！正在背景同步至雲端...', "success")
+        flash(f'據點 "{location.name}" 本日營業已成功歸檔！正在背景同步至雲端...', "success")
         return redirect(url_for("cashier.dashboard"))
-
     except Exception as e:
         db.session.rollback()
         flash(f"歸檔時發生錯誤：{e}", "danger")
-        return redirect(url_for("cashier.daily_report", location=location))
+        return redirect(url_for("cashier.daily_report", location_slug=location.slug))

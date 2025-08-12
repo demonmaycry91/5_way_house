@@ -23,11 +23,33 @@ class User(db.Model, UserMixin):
         return f'<User {self.username}>'
 
 
+class Location(db.Model):
+    """營業據點模型"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)  # 例如: "本舖"
+    slug = db.Column(db.String(50), unique=True, nullable=False, index=True) # 例如: "main-store"
+
+    business_days = db.relationship('BusinessDay', back_populates='location', lazy=True)
+
+    def __repr__(self):
+        return f'<Location {self.name}>'
+    
+
 class BusinessDay(db.Model):
     """營業日模型：記錄每一天的完整營運資訊"""
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    location = db.Column(db.String(100), nullable=False)  # 營業據點名稱
+
+    # --- ↓↓↓ 這是主要的修改點 ↓↓↓ ---
+    # 1. 註解或刪除舊的 location 欄位
+    # location = db.Column(db.String(100), nullable=False) 
+
+    # 2. 新增 location_id 外鍵欄位
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
+
+    # 3. 新增 relationship，讓我們可以透過 business_day.location 來取得整個 Location 物件
+    location = db.relationship('Location', back_populates='business_days')
+    # --- ↑↑↑ 修改結束 ↑↑↑ ---
     location_notes = db.Column(db.String(200), nullable=True)  # 據點備註
 
     # 狀態：NOT_STARTED (尚未開帳), OPEN (營業中), CLOSED (已日結)
@@ -57,7 +79,8 @@ class BusinessDay(db.Model):
                            onupdate=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
-        return f'<BusinessDay {self.date} - {self.location}>'
+        # 更新 __repr__ 方法以使用新的關聯
+        return f'<BusinessDay {self.date} - {self.location.name}>'
 
 
 class Transaction(db.Model):

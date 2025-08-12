@@ -13,7 +13,7 @@
 
 <div class="card">
     <div class="card-body">
-        <form method="POST" action="{{ url_for('cashier.close_day', location=location) }}">
+        <form method="POST" action="{{ url_for('cashier.close_day', location_slug=location.slug) }}">
             <table class="table table-borderless">
                 <thead>
                     <tr>

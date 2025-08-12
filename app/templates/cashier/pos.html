@@ -5,11 +5,11 @@
 
 {% block content %}
 {{ page_header(
-    title='POS 系統', 
-    subtitle='據點：' ~ location ~ ' | 日期：' ~ today_date, 
-    button_url=url_for('cashier.dashboard'), 
+    title='POS 系統',
+    subtitle='據點：' ~ location.name ~ ' | 日期：' ~ today_date,
+    button_url=url_for('cashier.dashboard'),
     button_text='返回儀表板'
-    ) }}
+) }}
     
 <div class="row">
     <div class="col-md-6 mb-3 mb-md-0">
@@ -109,7 +109,7 @@
             </div>
         </div>
         <div class="d-grid mt-4">
-            <a href="{{ url_for('cashier.close_day', location=location) }}" class="btn btn-danger btn-lg">結束營業
+            <a href="{{ url_for('cashier.close_day', location_slug=location.slug) }}" class="btn btn-danger btn-lg">結束營業
                 (日結)</a>
         </div>
     </div>
@@ -118,6 +118,6 @@
 
 <script src="{{ url_for('static', filename='js/pos_scripts.js') }}"></script>
 <script>
-    const POS_LOCATION = "{{ location }}";
+    const POS_LOCATION = "{{ location.slug }}";
 </script>
 {% endblock %}

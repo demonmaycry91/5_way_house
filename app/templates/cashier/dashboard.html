@@ -1,17 +1,23 @@
+{# 繼承自我們修改過的 base.html，這會自動引入全局的 Navbar 和版面容器 #}
 {% extends "base.html" %}
+{# 從 macros.html 檔案中匯入我們自訂的 page_header 宏，方便我們建立標準化的頁首 #}
 {% from "macros.html" import page_header with context %}
 
+{# 設定瀏覽器分頁的標題 #}
 {% block title %}每日營運儀表板{% endblock %}
 
 {% block content %}
+{# --- 頁面標題區塊 --- #}
+{# 使用我們自訂的宏來產生標準化的頁首。它會顯示主標題、副標題和一個登出按鈕 #}
 {{ page_header(
-    title='每日營運儀表板', 
-    subtitle='日期：' ~ today_date, 
-    button_url=url_for('cashier.logout'), 
+    title='每日營運儀表板',
+    subtitle='日期：' ~ today_date,
+    button_url=url_for('cashier.logout'),
     button_text='登出'
-    ) }}
+) }}
 
-{# 顯示 flash 訊息 #}
+{# --- Flash 訊息顯示區塊 --- #}
+{# 這是 Flask 的標準作法，用來顯示從後端透過 flash() 函式傳來的臨時訊息 (例如 "操作成功" 或 "錯誤") #}
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 {% for category, message in messages %}
@@ -23,22 +29,30 @@
 {% endif %}
 {% endwith %}
 
+{# --- 據點狀態列表 --- #}
+{# 使用 Bootstrap 的 list-group 元件來顯示所有營業據點的狀態 #}
 <div class="list-group">
+    {# [修改點] 遍歷從後端傳來的 locations_status 字典。
+       現在，key (我們命名為 location) 是一個完整的 Location 物件，而 value (data) 是一個包含狀態訊息的字典。#}
     {% for location, data in locations_status.items() %}
+    {# data.url 包含了已經由後端 url_for('...', location_slug=location.slug) 產生的正確連結 #}
     <a href="{{ data.url }}"
         class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
         <div>
-            <h5 class="mb-1">{{ location }}</h5>
+            {# [修改點] 我們現在使用 location.name 來顯示據點的中文名稱，而不是直接印出 location 字串。 #}
+            <h5 class="mb-1">{{ location.name }}</h5>
             <small>{{ data.message }}</small>
         </div>
+        {# 右側的狀態標籤，其顏色 (badge_class) 和文字 (status_text) 也是由後端動態決定的 #}
         <span class="badge rounded-pill {{ data.badge_class }}">
             {{ data.status_text }}
         </span>
     </a>
+    {# 如果 locations_status 是空的 (例如資料庫中沒有任何據點)，則顯示提示訊息 #}
     {% else %}
     <div class="list-group-item">
         <p class="text-center text-muted my-3">尚未設定任何營運據點。</p>
-        <p class.text-center text-muted my-3>請先在後台新增據點</p>
+        <p class="text-center text-muted my-3">請先在後台新增據點</p>
     </div>
     {% endfor %}
 </div>

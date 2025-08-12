@@ -1,21 +1,25 @@
 {% extends "base.html" %}
 {% from "macros.html" import page_header with context %}
 
-{% block title %}開店作業{% endblock %}
+{# [修改點] 使用 location.name 來產生更具體的頁面標題 #}
+{% block title %}開店作業 - {{ location.name }}{% endblock %}
 
 {% block content %}
+{# --- 頁面標題區塊 --- #}
+{# 使用宏來產生頁首，副標題中的據點名稱也是來自 location.name #}
 {{ page_header(
-    title='開店作業', 
-    subtitle='據點：' ~ location ~ ' | 日期：' ~ today_date, 
-    button_url=url_for('cashier.dashboard'), 
+    title='開店作業',
+    subtitle='據點：' ~ location.name ~ ' | 日期：' ~ today_date,
+    button_url=url_for('cashier.dashboard'),
     button_text='返回儀表板'
-    ) }}
-    
+) }}
 <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
         <div class="card">
             <div class="card-body">
-                <form method="POST" action="{{ url_for('cashier.start_day', location=location) }}">
+                {# [修改點] 這個表單將會提交到 start_day 路由。
+                我們使用 location.slug 來產生對應的 URL，例如 /cashier/start_day/main-store #}
+                <form method="POST" action="{{ url_for('cashier.start_day', location_slug=location.slug) }}">
                     <div class="mb-3">
                         <label for="opening_cash" class="form-label">開店準備金 (元)</label>
                         <input type="number" class="form-control" id="opening_cash" name="opening_cash" min="0" step="1"
