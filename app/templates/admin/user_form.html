@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title=form_title,
+    subtitle='使用者: ' ~ user.username if user else '',
+    button_url=url_for('admin.list_users'),
+    button_text='返回列表'
+) }}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control") }}
+                        {% if user %}<small class="form-text text-muted">若不需變更密碼，請留白。</small>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password2.label(class="form-label") }}
+                        {{ form.password2(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.roles.label(class="form-label") }}
+                        <div class="border rounded p-2">
+                           {{ form.roles }}
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

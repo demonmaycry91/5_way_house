@@ -16,9 +16,10 @@ from .. import db, login_manager, csrf
 from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm
 from datetime import date, datetime
 from ..services import google_service
-# *** 修正點：匯入 contains_eager 和 and_ ***
 from sqlalchemy.orm import contains_eager
 from sqlalchemy import and_
+# --- 匯入我們建立的裝飾器 ---
+from ..decorators import admin_required
 
 # 建立名為 'cashier' 的藍圖
 bp = Blueprint("cashier", __name__, url_prefix="/cashier")
@@ -44,11 +45,6 @@ def dashboard():
     """每日營運儀表板。"""
     today = date.today()
     
-    # *** 修正點：使用正確的 outerjoin 語法 ***
-    # 1. .outerjoin(BusinessDay, and_(...)) - 我們明確指定要連接到 BusinessDay 表。
-    # 2. and_(Location.id == BusinessDay.location_id, BusinessDay.date == today) - 我們提供一個完整的 ON 條件，
-    #    這個條件包含了關聯的鍵 (Location.id == BusinessDay.location_id) 和我們額外的過濾條件 (BusinessDay.date == today)。
-    #    這樣就避免了 'InvalidRequestError'。
     locations = (
         db.session.query(Location)
         .outerjoin(
@@ -66,8 +62,6 @@ def dashboard():
     locations_status = {}
     
     for location in locations:
-        # 現在 location.business_days 是一個 list，如果今天有紀錄，它會有一個元素；如果沒有，它會是空 list。
-        # 這樣處理可以完美地避免 N+1 問題，且語法正確。
         business_day = next(iter(location.business_days), None)
         
         status_info = {}
@@ -142,6 +136,7 @@ def logout():
 # --- Settings ---
 @bp.route("/settings")
 @login_required
+@admin_required  # --- 修正點：加入權限保護 ---
 def settings():
     """系統設定頁面，主要用於管理 Google 帳號的連結狀態。"""
     token_path = os.path.join(current_app.instance_path, "token.json")

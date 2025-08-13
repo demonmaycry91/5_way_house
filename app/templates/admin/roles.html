@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}角色管理{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title='角色管理',
+    button_url=url_for('admin.add_role'),
+    button_text='新增角色'
+) }}
+
+<!-- Flash messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }}">{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>角色名稱</th>
+                    <th>權限</th>
+                    <th class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for role in roles %}
+                <tr>
+                    <td>{{ role.id }}</td>
+                    <td>{{ role.name }}</td>
+                    <td>
+                        {% for perm in role.get_permissions() %}
+                            <span class="badge bg-info">{{ perm }}</span>
+                        {% endfor %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.edit_role', role_id=role.id) }}" class="btn btn-sm btn-warning">編輯</a>
+                        <form action="{{ url_for('admin.delete_role', role_id=role.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除嗎？');">
+                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                           <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,119 +1,152 @@
-# app/routes/admin_routes.py (新檔案)
-
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from ..models import Location
+from ..models import Location, User, Role, Permission
 from .. import db
-import re
-from ..forms import LocationForm
+from ..forms import LocationForm, RoleForm, UserForm
+from ..decorators import admin_required
 
-# 建立名為 'admin' 的藍圖，並設定 URL 前綴為 /admin
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-def generate_slug(name):
-    """一個簡單的函式，根據中文名稱產生一個 URL-friendly 的 slug。"""
-    # 移除非中文字元、字母和數字的字元
-    name = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]', '-', name)
-    # 將連續的連字號替換為單個連字號
-    name = re.sub(r'-+', '-', name)
-    # 移除開頭和結尾的連字號
-    return name.lower().strip('-')
-
-@bp.route('/locations')
+@bp.before_request
 @login_required
+@admin_required
+def before_request():
+    """保護所有 admin 藍圖下的路由"""
+    pass
+
+# --- 據點管理 ---
+@bp.route('/locations')
 def list_locations():
-    """顯示所有據點的列表頁面。"""
     locations = Location.query.order_by(Location.id).all()
     return render_template('admin/locations.html', locations=locations)
 
 @bp.route('/locations/add', methods=['GET', 'POST'])
-@login_required
 def add_location():
-    """處理新增據點的頁面和邏輯。"""
     form = LocationForm()
     if form.validate_on_submit():
-        name = form.name.data
-        slug = form.slug.data
-
-        # 檢查名稱或 slug 是否已存在
-        if Location.query.filter((Location.name == name) | (Location.slug == slug)).first():
-            flash('據點名稱或 Slug 已存在，請使用不同的名稱。', 'danger')
-        
-        else:
-            # 建立新的 Location 物件並存入資料庫
-            new_location = Location(name=name, slug=slug)
-            db.session.add(new_location)
-            db.session.commit()
-            flash(f'據點 "{name}" 已成功新增！', 'success')
-            return redirect(url_for('admin.list_locations'))
-    
+        new_location = Location(name=form.name.data, slug=form.slug.data)
+        db.session.add(new_location)
+        db.session.commit()
+        flash('據點已新增', 'success')
+        return redirect(url_for('admin.list_locations'))
     return render_template('admin/location_form.html', form=form, form_title='新增據點')
 
-    # if request.method == 'POST':
-    #     name = request.form.get('name')
-    #     slug = request.form.get('slug')
-
-    #     if not name or not slug:
-    #         flash('據點名稱和 Slug 皆為必填欄位。', 'danger')
-    #         return render_template('admin/location_form.html', form_title='新增據點')
-
-    #     # 檢查名稱或 slug 是否已存在
-    #     if Location.query.filter((Location.name == name) | (Location.slug == slug)).first():
-    #         flash('據點名稱或 Slug 已存在，請使用不同的名稱。', 'danger')
-    #         return render_template('admin/location_form.html', form_title='新增據點', name=name, slug=slug)
-        
-    #     # 建立新的 Location 物件並存入資料庫
-    #     new_location = Location(name=name, slug=slug)
-    #     db.session.add(new_location)
-    #     db.session.commit()
-        
-    #     flash(f'據點 "{name}" 已成功新增！', 'success')
-    #     return redirect(url_for('admin.list_locations'))
-
-    # return render_template('admin/location_form.html', form_title='新增據點')
-
-
 @bp.route('/locations/<int:location_id>/edit', methods=['GET', 'POST'])
-@login_required
 def edit_location(location_id):
-    """處理編輯現有據點的頁面和邏輯。"""
     location = Location.query.get_or_404(location_id)
-
     form = LocationForm(obj=location)
     if form.validate_on_submit():
-        name = form.name.data
-        slug = form.slug.data
-
-        # 檢查名稱或 slug 是否已存在，排除當前編輯的據點
-        existing_location = Location.query.filter(Location.id != location_id, (Location.name == name) | (Location.slug == slug)).first()
-        if existing_location:
-            flash('據點名稱或 Slug 已被其他據點使用。', 'danger')
-        else:
-            # 更新據點資料
-            location.name = name
-            location.slug = slug
-            db.session.commit()  
-            flash(f'據點 "{name}" 已成功更新！', 'success')
-            return redirect(url_for('admin.list_locations'))
-    
-    return render_template('admin/location_form.html', form=form, form_title='編輯據點', location=location)
-
-
-
+        form.populate_obj(location)
+        db.session.commit()
+        flash('據點已更新', 'success')
+        return redirect(url_for('admin.list_locations'))
+    return render_template('admin/location_form.html', form=form, form_title='編輯據點')
 
 @bp.route('/locations/<int:location_id>/delete', methods=['POST'])
-@login_required
 def delete_location(location_id):
-    """處理刪除據點的邏輯。"""
     location = Location.query.get_or_404(location_id)
-    
-    # 檢查該據點是否仍有關聯的營業日紀錄
     if location.business_days:
         flash(f'錯誤：無法刪除據點 "{location.name}"，因為它仍有相關的營業日紀錄。', 'danger')
         return redirect(url_for('admin.list_locations'))
-
     db.session.delete(location)
     db.session.commit()
-    
-    flash(f'據點 "{location.name}" 已成功刪除。', 'success')
+    flash('據點已刪除', 'success')
     return redirect(url_for('admin.list_locations'))
+
+
+# --- 使用者管理 ---
+@bp.route('/users')
+def list_users():
+    users = User.query.order_by(User.id).all()
+    return render_template('admin/users.html', users=users)
+
+@bp.route('/users/add', methods=['GET', 'POST'])
+def add_user():
+    form = UserForm(user=None)
+    if form.validate_on_submit():
+        user = User(username=form.username.data)
+        if form.password.data:
+            user.set_password(form.password.data)
+        for role_id in form.roles.data:
+            role = Role.query.get(role_id)
+            user.roles.append(role)
+        db.session.add(user)
+        db.session.commit()
+        flash('新使用者已建立。', 'success')
+        return redirect(url_for('admin.list_users'))
+    return render_template('admin/user_form.html', form=form, form_title="建立新使用者")
+
+@bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    form = UserForm(user=user, obj=user)
+    if form.validate_on_submit():
+        user.username = form.username.data
+        if form.password.data:
+            user.set_password(form.password.data)
+        user.roles = []
+        for role_id in form.roles.data:
+            role = Role.query.get(role_id)
+            user.roles.append(role)
+        db.session.commit()
+        flash('使用者資料已更新。', 'success')
+        return redirect(url_for('admin.list_users'))
+    form.roles.data = [role.id for role in user.roles]
+    return render_template('admin/user_form.html', form=form, form_title="編輯使用者", user=user)
+
+@bp.route('/users/<int:user_id>/delete', methods=['POST'])
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash('使用者已刪除。', 'success')
+    return redirect(url_for('admin.list_users'))
+
+# --- 角色與權限管理 ---
+@bp.route('/roles')
+def list_roles():
+    roles = Role.query.order_by(Role.id).all()
+    return render_template('admin/roles.html', roles=roles)
+
+@bp.route('/roles/add', methods=['GET', 'POST'])
+def add_role():
+    form = RoleForm()
+    # 動態地從 Permission class 取得所有權限常數作為選項
+    form.permissions.choices = [
+        (p, p) for p in dir(Permission) 
+        if not p.startswith('__') and isinstance(getattr(Permission, p), str)
+    ]
+    if form.validate_on_submit():
+        # 將勾選的權限列表組合成一個字串儲存
+        role = Role(name=form.name.data, permissions=','.join(form.permissions.data))
+        db.session.add(role)
+        db.session.commit()
+        flash('新角色已建立。', 'success')
+        return redirect(url_for('admin.list_roles'))
+    return render_template('admin/role_form.html', form=form, form_title="建立新角色")
+
+@bp.route('/roles/<int:role_id>/edit', methods=['GET', 'POST'])
+def edit_role(role_id):
+    role = Role.query.get_or_404(role_id)
+    form = RoleForm(obj=role)
+    form.permissions.choices = [
+        (p, p) for p in dir(Permission) 
+        if not p.startswith('__') and isinstance(getattr(Permission, p), str)
+    ]
+    if form.validate_on_submit():
+        role.name = form.name.data
+        role.permissions = ','.join(form.permissions.data)
+        db.session.commit()
+        flash('角色已更新。', 'success')
+        return redirect(url_for('admin.list_roles'))
+    # 在 GET 請求時，預先勾選該角色已有的權限
+    form.permissions.data = role.get_permissions()
+    return render_template('admin/role_form.html', form=form, form_title="編輯角色")
+
+@bp.route('/roles/<int:role_id>/delete', methods=['POST'])
+def delete_role(role_id):
+    role = Role.query.get_or_404(role_id)
+    db.session.delete(role)
+    db.session.commit()
+    flash('角色已刪除。', 'success')
+    return redirect(url_for('admin.list_roles'))

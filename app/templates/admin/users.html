@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}使用者管理{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title='使用者管理',
+    button_url=url_for('admin.add_user'),
+    button_text='新增使用者'
+) }}
+
+<!-- Flash messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }}">{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>使用者名稱</th>
+                    <th>角色</th>
+                    <th class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>
+                        {% for role in user.roles %}
+                            <span class="badge bg-secondary">{{ role.name }}</span>
+                        {% else %}
+                            <span class="text-muted">無</span>
+                        {% endfor %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="btn btn-sm btn-warning">編輯</a>
+                        <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除嗎？');">
+                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                           <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title=form_title,
+    button_url=url_for('admin.list_roles'),
+    button_text='返回列表'
+) }}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.permissions.label(class="form-label") }}
+                        <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                            {# --- 修正點：手動迭代以移除 bullet points --- #}
+                            {% for subfield in form.permissions %}
+                                <div class="form-check">
+                                    {{ subfield(class="form-check-input") }}
+                                    {{ subfield.label(class="form-check-label") }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

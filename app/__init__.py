@@ -22,6 +22,9 @@ def create_app():
     # 從 .env 讀取設定
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-fallback-secret-key')
     
+    # --- 新增：設定 Session 在瀏覽器關閉後失效 ---
+    app.config['SESSION_PERMANENT'] = False
+    
     # 設定資料庫 URI
     try:
         os.makedirs(app.instance_path)

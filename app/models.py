@@ -1,103 +1,109 @@
-from . import db  # 從 my_app 的 __init__.py 中匯入 db 實例
+from . import db
 from datetime import datetime, timezone
-from flask_login import UserMixin  # <-- 新增
-from werkzeug.security import generate_password_hash, check_password_hash  # <-- 新增
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 
+# --- 中介關聯表 ---
+roles_users = db.Table('roles_users',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('role.id'), primary_key=True)
+)
 
-# 讓 User 模型繼承 UserMixin，它會提供 is_authenticated 等預設屬性
+# *** 修正點：移除不必要的 permissions_roles 中介表 ***
+# permissions_roles = db.Table('permissions_roles',
+#     db.Column('role_id', db.Integer, db.ForeignKey('role.id'), primary_key=True),
+#     db.Column('permission_id', db.Integer, db.ForeignKey('permission.id'), primary_key=True)
+# )
+
+# --- 權限常數 ---
+class Permission:
+    MANAGE_USERS = 'manage_users'
+    MANAGE_ROLES = 'manage_roles'
+    MANAGE_LOCATIONS = 'manage_locations'
+    VIEW_REPORTS = 'view_reports'
+    OPERATE_POS = 'operate_pos'
+    SYSTEM_SETTINGS = 'system_settings'
+
+class Role(db.Model):
+    """角色模型"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), unique=True, nullable=False)
+    permissions = db.Column(db.Text, nullable=True) # 以逗號分隔的權限字串
+
+    users = db.relationship('User', secondary=roles_users, back_populates='roles')
+
+    def __repr__(self):
+        return f'<Role {self.name}>'
+        
+    def get_permissions(self):
+        if self.permissions:
+            return self.permissions.split(',')
+        return []
+
 class User(db.Model, UserMixin):
-    """使用者模型：用於登入驗證"""
+    """使用者模型"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
+    
+    roles = db.relationship('Role', secondary=roles_users, back_populates='users', lazy='dynamic')
 
-    # 新增設定密碼的方法
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
-    # 新增驗證密碼的方法
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+        
+    def has_role(self, role_name):
+        return self.roles.filter_by(name=role_name).first() is not None
+
+    def can(self, permission_name):
+        """檢查使用者是否具備某項權限"""
+        for role in self.roles:
+            if permission_name in role.get_permissions():
+                return True
+        return False
 
     def __repr__(self):
         return f'<User {self.username}>'
 
-
+# (Location, BusinessDay, Transaction 模型維持不變)
 class Location(db.Model):
-    """營業據點模型"""
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)  # 例如: "本舖"
-    slug = db.Column(db.String(50), unique=True, nullable=False, index=True) # 例如: "main-store"
-
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    slug = db.Column(db.String(50), unique=True, nullable=False, index=True)
     business_days = db.relationship('BusinessDay', back_populates='location', lazy=True)
-
     def __repr__(self):
         return f'<Location {self.name}>'
     
-
 class BusinessDay(db.Model):
-    """營業日模型：記錄每一天的完整營運資訊"""
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-
-    # --- ↓↓↓ 這是主要的修改點 ↓↓↓ ---
-    # 1. 註解或刪除舊的 location 欄位
-    # location = db.Column(db.String(100), nullable=False) 
-
-    # 2. 新增 location_id 外鍵欄位
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
-
-    # 3. 新增 relationship，讓我們可以透過 business_day.location 來取得整個 Location 物件
     location = db.relationship('Location', back_populates='business_days')
-    # --- ↑↑↑ 修改結束 ↑↑↑ ---
-    location_notes = db.Column(db.String(200), nullable=True)  # 據點備註
-
-    # 狀態：NOT_STARTED (尚未開帳), OPEN (營業中), CLOSED (已日結)
+    location_notes = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='NOT_STARTED')
-
-    # 財務數據
-    opening_cash = db.Column(db.Float, nullable=False)  # 開店準備金
-    total_sales = db.Column(db.Float, default=0.0)  # 本日銷售總額
-    closing_cash = db.Column(db.Float, nullable=True)  # 盤點現金合計 (日結時填寫)
-    expected_cash = db.Column(db.Float, nullable=True)  # 帳面總額 (開店+銷售)
-    cash_diff = db.Column(db.Float, nullable=True)  # 帳差
-
-    # 業績統計
-    total_items = db.Column(db.Integer, default=0)  # 銷售件數
-    total_transactions = db.Column(db.Integer, default=0)  # 交易筆數
-
-    # 現金盤點明細 (以 JSON 格式的字串儲存)
+    opening_cash = db.Column(db.Float, nullable=False)
+    total_sales = db.Column(db.Float, default=0.0)
+    closing_cash = db.Column(db.Float, nullable=True)
+    expected_cash = db.Column(db.Float, nullable=True)
+    cash_diff = db.Column(db.Float, nullable=True)
+    total_items = db.Column(db.Integer, default=0)
+    total_transactions = db.Column(db.Integer, default=0)
     cash_breakdown = db.Column(db.Text, nullable=True)
-
-    # 新增三個 Text 欄位，用來儲存簽名圖片的 Base64 資料或使用者輸入的文字
     signature_operator = db.Column(db.Text, nullable=True)
     signature_reviewer = db.Column(db.Text, nullable=True)
     signature_cashier = db.Column(db.Text, nullable=True)
-
-    # 建立與交易紀錄的一對多關聯
-    transactions = db.relationship(
-        'Transaction', backref='business_day', lazy=True)
-
-    # 更新時間戳記
-    updated_at = db.Column(db.DateTime,
-                           default=lambda: datetime.now(timezone.utc),
-                           onupdate=lambda: datetime.now(timezone.utc))
-
+    transactions = db.relationship('Transaction', backref='business_day', lazy=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     def __repr__(self):
-        # 更新 __repr__ 方法以使用新的關聯
         return f'<BusinessDay {self.date} - {self.location.name}>'
 
-
 class Transaction(db.Model):
-    """交易紀錄模型：記錄每一筆顧客交易"""
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    amount = db.Column(db.Float, nullable=False)  # 單筆成交金額
-    item_count = db.Column(db.Integer, nullable=False)  # 單筆銷售件數
-
-    # 建立與營業日的多對一外鍵關聯
-    business_day_id = db.Column(db.Integer, db.ForeignKey(
-        'business_day.id'), nullable=False)
-
+    amount = db.Column(db.Float, nullable=False)
+    item_count = db.Column(db.Integer, nullable=False)
+    business_day_id = db.Column(db.Integer, db.ForeignKey('business_day.id'), nullable=False)
     def __repr__(self):
         return f'<Transaction {self.id} - Amount: {self.amount}>'
