@@ -67,3 +67,18 @@ class UserForm(FlaskForm):
         if self.original_user is None or self.original_user.username != field.data:
             if User.query.filter_by(username=field.data).first():
                  raise ValidationError('此使用者名稱已被使用。')
+
+# --- 新增：Google 雲端設定表單 ---
+class GoogleSettingsForm(FlaskForm):
+    """用於管理 Google Drive 和 Sheets 設定的表單"""
+    drive_folder_name = StringField(
+        'Google Drive 資料夾名稱',
+        validators=[DataRequired(message="請輸入資料夾名稱。")],
+        description="所有報表將會備份到您 Google Drive 中以此名稱命名的資料夾。"
+    )
+    sheets_filename_format = StringField(
+        'Google Sheets 檔名格式',
+        validators=[DataRequired(message="請輸入檔名格式。")],
+        description="支援的變數: {location_name}, {location_slug}, {year}, {month}。例如: {location_name}_{year}_業績"
+    )
+    submit = SubmitField('儲存設定')

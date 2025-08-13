@@ -1,17 +1,33 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_login import LoginManager
 import os
 from dotenv import load_dotenv
 from redis import Redis
 import rq
 from flask_wtf.csrf import CSRFProtect
+# --- 新增匯入 ---
+from sqlalchemy import MetaData
+# --- 修正點：匯入 LoginManager ---
+from flask_login import LoginManager
 
 load_dotenv()
 csrf = CSRFProtect()
 
-db = SQLAlchemy()
+# --- 新增：為資料庫約束(constraint)定義命名慣例 ---
+# 這會告訴 SQLAlchemy 如何自動為索引、唯一約束、外鍵等命名
+convention = {
+    "ix": 'ix_%(column_0_label)s',
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s"
+}
+
+# --- 修改：將命名慣例應用到 SQLAlchemy ---
+metadata = MetaData(naming_convention=convention)
+db = SQLAlchemy(metadata=metadata)
+
 migrate = Migrate()
 login_manager = LoginManager()
 login_manager.login_view = 'cashier.login'
@@ -19,13 +35,9 @@ login_manager.login_view = 'cashier.login'
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
-    # 從 .env 讀取設定
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-fallback-secret-key')
-    
-    # --- 新增：設定 Session 在瀏覽器關閉後失效 ---
     app.config['SESSION_PERMANENT'] = False
     
-    # 設定資料庫 URI
     try:
         os.makedirs(app.instance_path)
     except OSError:
@@ -34,19 +46,16 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    # 從 .env 讀取 Redis URL 並建立連線
     app.config['REDIS_URL'] = os.getenv('REDIS_URL', 'redis://')
-    # 建立 Redis 連線物件和 RQ 任務隊列物件，並將它們附加到 app 物件上
     app.redis = Redis.from_url(app.config['REDIS_URL'])
     app.task_queue = rq.Queue('cashier-tasks', connection=app.redis)
 
-    # 初始化資料庫等擴充套件
     csrf.init_app(app)
     db.init_app(app)
-    migrate.init_app(app, db)
+    # --- 修改：加入 render_as_batch=True 以支援 SQLite 的表結構變更 ---
+    migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
-    # 註冊藍圖
     from .routes import main_routes, ocr_routes, cashier_routes, google_routes, admin_routes
     app.register_blueprint(main_routes.bp)
     app.register_blueprint(ocr_routes.bp)
