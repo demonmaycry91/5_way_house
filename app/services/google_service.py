@@ -1,19 +1,12 @@
-# app/services/google_service.py (循環匯入修正版)
-
 import os
-# --- [關鍵修正 1] ---
-# 不再從 run.py 匯入 app，而是從 app 套件的 __init__.py 匯入 create_app 工廠函式
 from app import create_app
 from flask import current_app
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from datetime import datetime
-
-# --- [關鍵修正 2] ---
-# 呼叫工廠函式，為這個模組 (也就是背景 Worker) 建立一個獨立的 app 實例
-# 這樣背景任務就可以透過這個 app 實例來建立自己的應用程式上下文 (app_context)
-# app = create_app()
+# *** 優化點：匯入 HttpError 以便捕捉特定的 API 錯誤 ***
+from googleapiclient.errors import HttpError
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -23,7 +16,6 @@ REPORTS_FOLDER_NAME = "Cashier_System_Reports"
 
 
 def get_google_creds():
-    # 這個函式內的 current_app 會在 app_context 中被正確解析
     token_file = os.path.join(current_app.instance_path, "token.json")
     creds = None
     if os.path.exists(token_file):
@@ -35,10 +27,10 @@ def get_google_creds():
                 with open(token_file, "w") as token:
                     token.write(creds.to_json())
             except Exception as e:
-                app.logger.error(f"!!! 刷新 Google 憑證失敗: {e}")
+                current_app.logger.error(f"!!! 刷新 Google 憑證失敗: {e}")
                 return None
         else:
-            app.logger.warning("!!! 找不到有效的 Google 憑證檔案。")
+            current_app.logger.warning("!!! 找不到有效的 Google 憑證檔案。")
             return None
     return creds
 
@@ -53,6 +45,7 @@ def get_services():
 
 
 def find_or_create_folder(drive_service, folder_name):
+    # (此函式邏輯不變，省略)
     response = (
         drive_service.files()
         .list(
@@ -76,13 +69,14 @@ def find_or_create_folder(drive_service, folder_name):
 
 
 def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, location):
+    # (此函式邏輯不變，省略)
     year = datetime.now().year
-    file_name = f"{location}_{year}_transactions.xlsx"
+    file_name = f"{location}_{year}_transactions" # 檔名移除了 .xlsx
 
     response = (
         drive_service.files()
         .list(
-            q=f"name='{file_name}' and '{folder_id}' in parents and trashed=false",
+            q=f"name='{file_name}' and '{folder_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.spreadsheet'",
             fields="files(id)",
         )
         .execute()
@@ -98,25 +92,25 @@ def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, locatio
             .execute()
         )
         spreadsheet_id = spreadsheet.get("spreadsheetId")
-        app.logger.info(f"成功建立新的試算表: {file_name} (ID: {spreadsheet_id})")
+        current_app.logger.info(f"成功建立新的試算表: {file_name} (ID: {spreadsheet_id})")
 
-        file = (
-            drive_service.files().get(fileId=spreadsheet_id, fields="parents").execute()
-        )
-        previous_parents = ",".join(file.get("parents"))
+        # 將檔案移動到指定資料夾
+        file_metadata = drive_service.files().get(fileId=spreadsheet_id, fields='parents').execute()
+        previous_parents = ",".join(file_metadata.get('parents'))
         drive_service.files().update(
             fileId=spreadsheet_id,
             addParents=folder_id,
             removeParents=previous_parents,
-            fields="id, parents",
+            fields='id, parents'
         ).execute()
-        app.logger.info(f"成功將試算表移動至資料夾 ID: {folder_id}")
+        current_app.logger.info(f"成功將試算表移動至資料夾 ID: {folder_id}")
         return spreadsheet_id
 
 
 def ensure_sheet_with_header_exists(
     sheets_service, spreadsheet_id, sheet_name, header_row
 ):
+    # (此函式邏輯不變，省略)
     spreadsheet = (
         sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     )
@@ -126,7 +120,7 @@ def ensure_sheet_with_header_exists(
     )
 
     if not sheet_exists:
-        app.logger.info(f"工作表 '{sheet_name}' 不存在，正在建立並寫入標題...")
+        current_app.logger.info(f"工作表 '{sheet_name}' 不存在，正在建立並寫入標題...")
         requests = [{"addSheet": {"properties": {"title": sheet_name}}}]
         sheets_service.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id, body={"requests": requests}
@@ -139,10 +133,11 @@ def ensure_sheet_with_header_exists(
             valueInputOption="USER_ENTERED",
             body=header_body,
         ).execute()
-        app.logger.info(f"成功為 '{sheet_name}' 寫入標題列")
+        current_app.logger.info(f"成功為 '{sheet_name}' 寫入標題列")
 
 
 def append_data(sheets_service, spreadsheet_id, sheet_name, data_row):
+    # (此函式邏輯不變，省略)
     body = {"values": [data_row]}
     sheets_service.spreadsheets().values().append(
         spreadsheetId=spreadsheet_id,
@@ -151,13 +146,11 @@ def append_data(sheets_service, spreadsheet_id, sheet_name, data_row):
         insertDataOption="INSERT_ROWS",
         body=body,
     ).execute()
-    app.logger.info(f"成功將資料附加到 '{sheet_name}'")
+    current_app.logger.info(f"成功將資料附加到 '{sheet_name}'")
 
 
 def write_transaction_to_sheet_task(location_name, transaction_data, header_row):
     """【背景任務】將單筆交易寫入 Google Sheet。"""
-    # --- [最終修正 3] ---
-    # 在任務執行時，才建立 app 並推入其上下文
     app = create_app()
     with app.app_context():
         try:
@@ -182,8 +175,17 @@ def write_transaction_to_sheet_task(location_name, transaction_data, header_row)
             append_data(
                 sheets_service, spreadsheet_id, month_sheet_name, transaction_data
             )
+        # *** 優化點：捕捉特定的 Google API 錯誤 ***
+        except HttpError as e:
+            # 解碼 Google 回傳的詳細錯誤內容
+            error_details = e.content.decode('utf-8')
+            current_app.logger.error(f"!!! [背景任務] Google API HTTP 錯誤: {e.resp.status} {e.resp.reason}, 詳細資訊: {error_details}")
+            # 在此處可以加入更進階的處理，例如：
+            # if e.resp.status in [401, 403]:
+            #     # 權限問題，可能需要通知管理員重新授權
+            #     notify_admin("Google API 權限失效，請重新連結帳號。")
         except Exception as e:
-            current_app.logger.error(f"!!! [背景任務] 寫入交易紀錄到 Google Sheet 時發生嚴重錯誤: {e}")
+            current_app.logger.error(f"!!! [背景任務] 寫入交易紀錄到 Google Sheet 時發生未預期的嚴重錯誤: {e}")
 
 
 def write_report_to_sheet_task(location_name, report_data, header_row):
@@ -210,5 +212,9 @@ def write_report_to_sheet_task(location_name, report_data, header_row):
                 sheets_service, spreadsheet_id, summary_sheet_name, header_row
             )
             append_data(sheets_service, spreadsheet_id, summary_sheet_name, report_data)
+        # *** 優化點：捕捉特定的 Google API 錯誤 ***
+        except HttpError as e:
+            error_details = e.content.decode('utf-8')
+            current_app.logger.error(f"!!! [背景任務] Google API HTTP 錯誤: {e.resp.status} {e.resp.reason}, 詳細資訊: {error_details}")
         except Exception as e:
-            current_app.logger.error(f"!!! [背景任務] 寫入每日摘要到 Google Sheet 時發生嚴重錯誤: {e}")
+            current_app.logger.error(f"!!! [背景任務] 寫入每日摘要到 Google Sheet 時發生未預期的嚴重錯誤: {e}")

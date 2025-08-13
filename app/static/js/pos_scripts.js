@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
-    // 獲取所有需要的 DOM 元素 (已移除聲音相關元素)
+    // 獲取所有需要的 DOM 元素
     const displayExpression1 = document.getElementById("display-expression-1");
     const displayExpression2 = document.getElementById("display-expression-2");
     const displayInput = document.getElementById("display-input");
@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const calcButtons = document.querySelectorAll(".calc-btn");
     const equalsBtn = document.getElementById("equals-btn");
 
-    // 狀態物件 (已移除聲音相關狀態)
+    // 狀態物件
     let state = {
         currentInput: "0",
         expression: "",
@@ -49,9 +49,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 ""
             );
             if (previewExpr) {
-                const previewResult = eval(
-                    previewExpr.replace(/×/g, "*").replace(/÷/g, "/")
-                );
+                // *** 優化點：預覽也使用安全的計算函式 ***
+                const previewResult = safeCalculate(previewExpr);
                 displayPreview.innerText = "= " + previewResult.toLocaleString();
             } else {
                 displayPreview.innerText = "";
@@ -118,11 +117,27 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDisplay();
     }
 
+    // *** 優化點：新增一個安全的計算函式來取代 eval() ***
+    function safeCalculate(expression) {
+        // 替換顯示用的運算符為 JS 可執行版本
+        const executableExpression = expression.replace(/×/g, "*").replace(/÷/g, "/");
+        
+        // 使用正則表達式驗證表達式，只允許數字、小數點和基本運算符
+        // 這可以防止任何非數學相關的程式碼被執行
+        if (!/^[0-9.+\-*/\s]+$/.test(executableExpression)) {
+            throw new Error("無效的運算式");
+        }
+        
+        // 使用 Function 建構子，這是在受控環境下執行程式碼的較安全方式
+        return new Function('return ' + executableExpression)();
+    }
+
     function handleEquals() {
         if (state.lastInputIsOperator) return;
         const finalExpression = state.expression + state.currentInput;
         try {
-            const total = eval(finalExpression.replace(/×/g, "*").replace(/÷/g, "/"));
+            // *** 優化點：使用新的 safeCalculate 函式 ***
+            const total = safeCalculate(finalExpression);
             if (isNaN(total)) throw new Error("無效計算");
 
             displayExpression1.innerText = "";
@@ -137,6 +152,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             sendTransaction(total, finalExpression);
         } catch (e) {
+            console.error("計算錯誤:", e);
             displayInput.innerText = "錯誤";
             setTimeout(() => handleAction("clear"), 1500);
         }
@@ -149,7 +165,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    location: POS_LOCATION,
+                    // *** 修正點：將變數名稱從 POS_LOCATION_SLUG 改回 POS_LOCATION ***
+                    // 這個變數是從 pos.html 樣板中傳入的
+                    location_slug: POS_LOCATION, 
                     total: total,
                     items: expression.split(/[+\-*/]/).length,
                 }),
@@ -179,9 +197,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const value = button.dataset.value;
             const action = button.dataset.action;
             if (value) {
-                value.includes("0") || (value > "0" && value <= "9") || value === "."
-                    ? handleNumber(value)
-                    : handleOperator(value);
+                // 檢查是否為數字或小數點
+                if (!isNaN(parseFloat(value)) || value === '.') {
+                    handleNumber(value);
+                } else {
+                    handleOperator(value);
+                }
             } else if (action) {
                 handleAction(action);
             }
