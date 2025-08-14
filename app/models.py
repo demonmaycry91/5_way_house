@@ -22,7 +22,7 @@ class Role(db.Model):
     """角色模型"""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
-    permissions = db.Column(db.Text, nullable=True) # 以逗號分隔的權限字串
+    permissions = db.Column(db.Text, nullable=True)
     users = db.relationship('User', secondary=roles_users, back_populates='roles')
 
     def __repr__(self):
@@ -37,12 +37,9 @@ class User(db.Model, UserMixin):
     """使用者模型"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    
-    # --- 新增/修改：Google 登入相關欄位 ---
     email = db.Column(db.String(120), unique=True, nullable=True)
     google_id = db.Column(db.String(120), unique=True, nullable=True, index=True)
-    password_hash = db.Column(db.String(200), nullable=True) # 允許密碼為空
-    
+    password_hash = db.Column(db.String(200), nullable=True)
     roles = db.relationship('Role', secondary=roles_users, back_populates='users', lazy='dynamic')
 
     def set_password(self, password):
@@ -57,7 +54,6 @@ class User(db.Model, UserMixin):
         return self.roles.filter_by(name=role_name).first() is not None
 
     def can(self, permission_name):
-        """檢查使用者是否具備某項權限"""
         for role in self.roles:
             if permission_name in role.get_permissions():
                 return True
@@ -66,8 +62,8 @@ class User(db.Model, UserMixin):
     def __repr__(self):
         return f'<User {self.username}>'
 
-# (Location, BusinessDay, Transaction 模型維持不變)
 class Location(db.Model):
+    """營業據點模型"""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     slug = db.Column(db.String(50), unique=True, nullable=False, index=True)
@@ -76,6 +72,7 @@ class Location(db.Model):
         return f'<Location {self.name}>'
     
 class BusinessDay(db.Model):
+    """營業日模型"""
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
@@ -95,20 +92,27 @@ class BusinessDay(db.Model):
     signature_cashier = db.Column(db.Text, nullable=True)
     transactions = db.relationship('Transaction', backref='business_day', lazy=True)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # --- 新增：其他收入欄位 (用於捐款) ---
+    other_income = db.Column(db.Float, default=0.0)
+
     def __repr__(self):
         return f'<BusinessDay {self.date} - {self.location.name}>'
 
 class Transaction(db.Model):
+    """交易紀錄模型"""
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     amount = db.Column(db.Float, nullable=False)
     item_count = db.Column(db.Integer, nullable=False)
     business_day_id = db.Column(db.Integer, db.ForeignKey('business_day.id'), nullable=False)
+    
+    # --- 新增：折扣券欄位 ---
+    discounts = db.Column(db.Text, nullable=True) # 以 JSON 字串儲存折扣券列表
+
     def __repr__(self):
         return f'<Transaction {self.id} - Amount: {self.amount}>'
 
-# --- 新增：系統設定模型 ---
-# 這是一個簡單的鍵值對儲存模型，用於存放全域設定
 class SystemSetting(db.Model):
     __tablename__ = 'system_setting'
     key = db.Column(db.String(50), primary_key=True)
@@ -116,13 +120,11 @@ class SystemSetting(db.Model):
 
     @staticmethod
     def get(key, default=None):
-        """一個方便的靜態方法，用於根據鍵名獲取設定值"""
         setting = db.session.get(SystemSetting, key)
         return setting.value if setting else default
 
     @staticmethod
     def set(key, value):
-        """一個方便的靜態方法，用於設定或更新一個值"""
         setting = db.session.get(SystemSetting, key)
         if setting:
             setting.value = value
@@ -130,4 +132,3 @@ class SystemSetting(db.Model):
             setting = SystemSetting(key=key, value=value)
             db.session.add(setting)
         db.session.commit()
-

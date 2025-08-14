@@ -74,11 +74,13 @@ def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, locatio
         drive_service.files()
         .list(
             q=f"name='{file_name}' and '{folder_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.spreadsheet'",
+            # --- 修正點：移除 'sheets(properties)'，因為 Drive API 不認得這個欄位 ---
             fields="files(id)",
         )
         .execute()
     )
     files = response.get("files", [])
+    
     if files:
         file_id = files[0].get("id")
         if overwrite:
@@ -90,14 +92,27 @@ def find_or_create_spreadsheet(drive_service, sheets_service, folder_id, locatio
                 current_app.logger.error(f"!!! 刪除舊檔案時發生錯誤: {e}")
         else:
             return file_id
+
     spreadsheet_metadata = {"properties": {"title": file_name}}
     spreadsheet = (
         sheets_service.spreadsheets()
-        .create(body=spreadsheet_metadata, fields="spreadsheetId")
+        .create(body=spreadsheet_metadata, fields="spreadsheetId,sheets.properties")
         .execute()
     )
     spreadsheet_id = spreadsheet.get("spreadsheetId")
     current_app.logger.info(f"成功建立新的試算表: {file_name} (ID: {spreadsheet_id})")
+    
+    default_sheet = spreadsheet.get('sheets', [{}])[0]
+    if default_sheet.get('properties', {}).get('title') == 'Sheet1':
+        sheet_id_to_delete = default_sheet.get('properties', {}).get('sheetId')
+        if sheet_id_to_delete is not None:
+            try:
+                delete_request = {'requests': [{'deleteSheet': {'sheetId': sheet_id_to_delete}}]}
+                sheets_service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=delete_request).execute()
+                current_app.logger.info("成功刪除預設的 'Sheet1' 工作表。")
+            except HttpError as e:
+                current_app.logger.warning(f"刪除預設工作表 'Sheet1' 時發生錯誤: {e}")
+
     file_metadata = drive_service.files().get(fileId=spreadsheet_id, fields='parents').execute()
     previous_parents = ",".join(file_metadata.get('parents'))
     drive_service.files().update(
@@ -236,10 +251,6 @@ def rebuild_backup_task(overwrite=False):
         from app.models import Location, BusinessDay, Transaction, SystemSetting
         from app import db
         current_app.logger.info(f"--- 開始執行完整備份任務 (Overwrite={overwrite}) ---")
-        
-        # --- 修正點：移除此處的安全檢查 ---
-        # 這個檢查現在由 app/routes/cashier_routes.py 的 rebuild_backup 路由負責
-
         try:
             drive_service, sheets_service = get_services()
             if not drive_service or not sheets_service:
@@ -254,18 +265,15 @@ def rebuild_backup_task(overwrite=False):
                 if not spreadsheet_id:
                     current_app.logger.warning(f"無法為據點 {location.name} 建立或找到試算表，跳過此據點。")
                     continue
+                
                 daily_reports = BusinessDay.query.filter_by(location_id=location.id, status='CLOSED').order_by(BusinessDay.date).all()
                 if daily_reports:
                     header = ["日期", "據點", "開店準備金", "本日銷售總額", "帳面總額", "盤點現金合計", "帳差", "交易筆數", "銷售件數"]
-                    data_rows = [header]
-                    for day in daily_reports:
-                        data_rows.append([
-                            day.date.strftime("%Y-%m-%d"), location.name, day.opening_cash,
-                            day.total_sales, day.expected_cash, day.closing_cash,
-                            day.cash_diff, day.total_transactions, day.total_items
-                        ])
+                    ensure_sheet_with_header_exists(sheets_service, spreadsheet_id, "每日摘要", header)
+                    data_rows = [header] + [[day.date.strftime("%Y-%m-%d"), location.name, day.opening_cash, day.total_sales, day.expected_cash, day.closing_cash, day.cash_diff, day.total_transactions, day.total_items] for day in daily_reports]
                     bulk_write_data(sheets_service, spreadsheet_id, "每日摘要", data_rows)
                     current_app.logger.info(f"已為 {location.name} 寫入 {len(data_rows) - 1} 筆每日摘要。")
+
                 monthly_stats = db.session.query(
                     extract('year', BusinessDay.date).label('year'),
                     extract('month', BusinessDay.date).label('month'),
@@ -276,15 +284,11 @@ def rebuild_backup_task(overwrite=False):
                 ).filter_by(location_id=location.id, status='CLOSED').group_by('year', 'month').order_by('year', 'month').all()
                 if monthly_stats:
                     header = ["月份", "總銷售額", "總帳差", "總交易筆數", "總銷售件數"]
-                    data_rows = [header]
-                    for stats in monthly_stats:
-                        data_rows.append([
-                            f"{stats.year}-{stats.month:02d}",
-                            stats.total_sales or 0, stats.cash_diff or 0,
-                            stats.total_transactions or 0, stats.total_items or 0
-                        ])
+                    ensure_sheet_with_header_exists(sheets_service, spreadsheet_id, "每月數據", header)
+                    data_rows = [header] + [[f"{stats.year}-{stats.month:02d}", stats.total_sales or 0, stats.cash_diff or 0, stats.total_transactions or 0, stats.total_items or 0] for stats in monthly_stats]
                     bulk_write_data(sheets_service, spreadsheet_id, "每月數據", data_rows)
                     current_app.logger.info(f"已為 {location.name} 寫入 {len(data_rows) - 1} 筆每月數據。")
+
                 all_transactions = Transaction.query.join(BusinessDay).filter(BusinessDay.location_id == location.id).order_by(Transaction.timestamp).all()
                 transactions_by_month = defaultdict(list)
                 for trans in all_transactions:
@@ -292,12 +296,8 @@ def rebuild_backup_task(overwrite=False):
                     transactions_by_month[month_key].append(trans)
                 for month_key, transactions in transactions_by_month.items():
                     header = ["時間戳", "金額", "品項數"]
-                    data_rows = [header]
-                    for trans in transactions:
-                        data_rows.append([
-                            trans.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                            trans.amount, trans.item_count
-                        ])
+                    ensure_sheet_with_header_exists(sheets_service, spreadsheet_id, month_key, header)
+                    data_rows = [header] + [[trans.timestamp.strftime("%Y-%m-%d %H:%M:%S"), trans.amount, trans.item_count] for trans in transactions]
                     bulk_write_data(sheets_service, spreadsheet_id, month_key, data_rows)
                     current_app.logger.info(f"已為 {location.name} 的 {month_key} 寫入 {len(data_rows) - 1} 筆交易紀錄。")
             current_app.logger.info("--- 完整備份任務執行完畢 ---")
