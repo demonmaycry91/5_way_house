@@ -1,8 +1,11 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets
+# --- 新增匯入 ---
+from wtforms.fields import ColorField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError
 # *** 修正點：在這裡匯入 Role 模型 ***
-from .models import User, Role
+# --- 新增匯入 ---
+from .models import User, Role, Category
 
 class LoginForm(FlaskForm):
     username = StringField('帳號', validators=[DataRequired(message="請輸入帳號。")])
@@ -10,12 +13,19 @@ class LoginForm(FlaskForm):
     submit = SubmitField('登入')
 
 class LocationForm(FlaskForm):
-    name = StringField('據點名稱', validators=[DataRequired(message="請輸入據點名稱。"), Length(max=50)])
+    name = StringField('據點名稱', validators=[DataRequired(message="請輸入据點名稱。"), Length(max=50)])
     slug = StringField('URL Slug', validators=[
         DataRequired(message="請輸入 URL Slug。"), 
         Length(max=50),
         Regexp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$', message='Slug 只能包含小寫英文、數字和連字號 (-)，且不能以連字號開頭或結尾。')
     ])
+    submit = SubmitField('儲存')
+
+# --- 新增：商品類別表單 ---
+class CategoryForm(FlaskForm):
+    """新增/編輯商品類別的表單"""
+    name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
+    color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
     submit = SubmitField('儲存')
 
 class StartDayForm(FlaskForm):

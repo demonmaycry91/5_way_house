@@ -12,58 +12,91 @@
 ) }}
     
 <div class="row">
-    <div class="col-md-6 mb-3 mb-md-0">
+    {# --- 左側：操作區 --- #}
+    <div class="col-md-7 mb-3 mb-md-0">
         <div class="card shadow-sm h-100">
             <div class="card-body p-3 d-flex flex-column">
+                {# --- 顯示區 --- #}
                 <div class="display-area mb-3">
                     <div id="display-expression" class="form-control-plaintext text-end text-muted px-2" style="height: 40px; overflow-x: auto; white-space: nowrap; font-size: 1.5rem;"></div>
                     <div id="display-main" class="form-control-plaintext text-end px-2" style="font-size: 2.8rem; height: 65px;">0</div>
-                    <div id="display-sub" class="form-control-plaintext text-end text-primary px-2" style="height: 30px; font-size: 1.2rem; font-weight: 500;"></div>
+                    <div id="display-sub" class="form-control-plaintext text-end text-primary px-2" style="height: 30px; font-size: 1.2rem; font-weight: 500;">請輸入金額</div>
                 </div>
 
-                <hr class="my-2">
+                <div class="col-12"><hr class="my-2"></div>
 
-                <div class="row g-2">
+                {# --- 按鍵區 --- #}
+                <div class="row g-2" id="keypad-grid">
+                    {# --- 商品類別按鈕區 --- #}
+                    <div class="col-12" id="category-buttons-container">
+                        <div class="row g-2">
+                            {% for category in categories %}
+                                <div class="col-4 d-grid">
+                                    <button class="btn btn-lg category-btn" 
+                                            style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"
+                                            data-id="{{ category.id }}" 
+                                            data-name="{{ category.name }}">
+                                        {{ category.name }}
+                                    </button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="col-12" id="keypad-divider"><hr class="my-2"></div>
+
+                    {# --- 計算機按鈕 --- #}
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="clear">C</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="clearEntry">CE</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn operator-btn" data-action="undo">CE</button></div>
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="backspace">⌫</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="/">÷</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn operator-btn" data-value="/">÷</button></div>
 
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="7">7</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="8">8</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="9">9</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="*">×</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="7">7</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="8">8</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="9">9</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn operator-btn" data-value="*">×</button></div>
                     
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="4">4</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="5">5</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="6">6</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="-">-</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="4">4</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="5">5</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="6">6</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn operator-btn" data-value="-">-</button></div>
                     
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="1">1</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="2">2</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="3">3</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn" data-value="+">+</button></div>
-
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="0">0</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value="00">00</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn" data-value=".">.</button></div>
-                    <div class="col-3 d-grid"><button id="equals-btn" class="btn btn-lg btn-success" data-action="equals">=</button></div>
-                    <div class="col-12 d-grid"><button id="donation-btn" class="btn btn-lg btn-warning">捐款</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="1">1</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="2">2</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="3">3</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn operator-btn" data-value="+">+</button></div>
+                    
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="0">0</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="00">00</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-light calc-btn number-btn" data-value="." >.</button></div>
+                    <div class="col-3 d-grid">
+                        <button id="equals-btn" class="btn btn-lg btn-primary" data-action="equals">=</button>
+                        <button id="checkout-btn" class="btn btn-lg btn-success" style="display: none;">收款結帳</button>
+                    </div>
+                    
+                    <div class="col-6 d-grid mt-2">
+                        <button id="donation-btn" class="btn btn-lg btn-warning">捐款</button>
+                    </div>
+                    <div class="col-6 d-grid mt-2">
+                        <button id="other-income-btn" class="btn btn-lg btn-info">其他</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-md-6">
+    {# --- 右側：明細與業績區 --- #}
+    <div class="col-md-5">
         <div class="card mb-3">
-            <div class="card-header">交易明細</div>
-            <div class="card-body d-flex flex-column" id="receipt-details" style="min-height: 210px;">
-                <div class="flex-grow-1 d-flex align-items-center justify-content-center">
-                    <p class="text-muted m-0">暫無交易</p>
-                </div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>交易明細</span>
+            </div>
+            {# --- ** 最終修正點：簡化容器結構 ** --- #}
+            <div id="receipt-details" class="d-flex flex-column" style="min-height: 250px; max-height: 250px; overflow-y: auto;">
+                <div class="text-center text-muted m-auto">暫無商品</div>
             </div>
         </div>
-
+        
         <div class="card text-center mb-3">
             <div class="card-header">本日即時業績</div>
             <div class="card-body">
@@ -83,9 +116,13 @@
                 </div>
                 <hr>
                 <div class="row">
-                    <div class="col-12">
-                        <h5>其他收入 (捐款)</h5>
-                        <p class="h3" id="other-income">$ {{ business_day.other_income|int }}</p>
+                    <div class="col-6">
+                        <h5>捐款</h5>
+                        <p class="h3" id="donation-total">$ {{ business_day.donation_total|int }}</p>
+                    </div>
+                    <div class="col-6">
+                        <h5>其他</h5>
+                        <p class="h3" id="other-total">$ {{ business_day.other_total|int }}</p>
                     </div>
                 </div>
             </div>

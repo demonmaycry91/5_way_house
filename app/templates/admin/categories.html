@@ -1,14 +1,17 @@
 {% extends "base.html" %}
 {% from "macros.html" import page_header with context %}
 
-{% block title %}據點管理{% endblock %}
+{% block title %}管理商品類別 - {{ location.name }}{% endblock %}
 
 {% block content %}
 {{ page_header(
-    title='據點管理',
-    button_url=url_for('admin.add_location'),
-    button_text='新增據點'
+    title='管理商品類別',
+    subtitle='據點: ' ~ location.name,
+    button_url=url_for('admin.add_category', location_id=location.id),
+    button_text='新增類別'
 ) }}
+
+<a href="{{ url_for('admin.list_locations') }}" class="btn btn-secondary mb-3">返回據點列表</a>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
@@ -27,22 +30,22 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>據點名稱</th>
-                    <th>URL Slug</th>
+                    <th>類別名稱</th>
+                    <th>顏色預覽</th>
                     <th class="text-end">操作</th>
                 </tr>
             </thead>
             <tbody>
-                {% for location in locations %}
+                {% for category in categories %}
                 <tr>
-                    <td>{{ location.id }}</td>
-                    <td>{{ location.name }}</td>
-                    <td><code>{{ location.slug }}</code></td>
+                    <td>{{ category.id }}</td>
+                    <td>{{ category.name }}</td>
+                    <td>
+                        <span class="badge" style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px #000;">{{ category.color }}</span>
+                    </td>
                     <td class="text-end">
-                        {# --- 新增：管理類別按鈕 --- #}
-                        <a href="{{ url_for('admin.list_categories', location_id=location.id) }}" class="btn btn-sm btn-info">管理類別</a>
-                        <a href="{{ url_for('admin.edit_location', location_id=location.id) }}" class="btn btn-sm btn-warning">編輯</a>
-                        <form action="{{ url_for('admin.delete_location', location_id=location.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除據點 \'{{ location.name }}\' 嗎？此操作無法復原。');">
+                        <a href="{{ url_for('admin.edit_category', category_id=category.id) }}" class="btn btn-sm btn-warning">編輯</a>
+                        <form action="{{ url_for('admin.delete_category', category_id=category.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除類別 \'{{ category.name }}\' 嗎？');">
                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                            <button type="submit" class="btn btn-sm btn-danger">刪除</button>
                         </form>
@@ -50,7 +53,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4" class="text-center text-muted">目前沒有任何據點。</td>
+                    <td colspan="4" class="text-center text-muted">此據點尚未設定任何商品類別。</td>
                 </tr>
                 {% endfor %}
             </tbody>

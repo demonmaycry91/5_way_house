@@ -11,7 +11,7 @@ from flask import (
     current_app,
 )
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User, BusinessDay, Transaction, Location, SystemSetting
+from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem
 from .. import db, login_manager, csrf
 from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm
 from datetime import date, datetime
@@ -164,7 +164,14 @@ def pos(location_slug):
     if not business_day:
         flash(f'據點 "{location.name}" 今日尚未開店營業。', "warning")
         return redirect(url_for("cashier.dashboard"))
-    return render_template("cashier/pos.html", location=location, today_date=today.strftime("%Y-%m-%d"), business_day=business_day)
+    
+    categories = Category.query.filter_by(location_id=location.id).order_by(Category.id).all()
+    
+    return render_template("cashier/pos.html", 
+                           location=location, 
+                           today_date=today.strftime("%Y-%m-%d"), 
+                           business_day=business_day,
+                           categories=categories)
 
 @bp.route("/record_transaction", methods=["POST"])
 @csrf.exempt
@@ -172,10 +179,11 @@ def pos(location_slug):
 def record_transaction():
     data = request.get_json()
     location_slug = data.get("location_slug")
-    total = data.get("total")
-    item_count = data.get("items")
-    discounts = data.get("discounts", [])
+    items = data.get("items", [])
     today = date.today()
+
+    if not items:
+        return jsonify({"success": False, "error": "交易內容不可為空"}), 400
 
     try:
         location = Location.query.filter_by(slug=location_slug).first()
@@ -183,37 +191,30 @@ def record_transaction():
         if not business_day:
             return jsonify({"success": False, "error": "找不到對應的營業中紀錄"}), 404
 
+        total_amount = sum(item['price'] for item in items)
+        item_count = sum(1 for item in items if item['price'] > 0)
+
         new_transaction = Transaction(
-            amount=total, 
-            item_count=item_count, 
+            amount=total_amount, 
+            item_count=len(items),
             business_day_id=business_day.id,
-            discounts=json.dumps(discounts) if discounts else None
         )
         db.session.add(new_transaction)
         
-        business_day.total_sales = (business_day.total_sales or 0) + total
+        for item in items:
+            transaction_item = TransactionItem(
+                price=item['price'],
+                category_id=item['category_id'],
+                transaction=new_transaction
+            )
+            db.session.add(transaction_item)
+
+        business_day.total_sales = (business_day.total_sales or 0) + total_amount
         business_day.total_items = (business_day.total_items or 0) + item_count
         business_day.total_transactions = (business_day.total_transactions or 0) + 1
         
         db.session.commit()
-
-        # --- 修正點：觸發兩個背景任務 ---
-        # 1. 記錄單筆交易
-        trans_header = ["時間戳", "金額", "品項數", "折扣"]
-        trans_data = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), total, item_count, json.dumps(discounts)]
-        current_app.task_queue.enqueue('app.services.google_service.write_transaction_to_sheet_task', args=(location.id, trans_data, trans_header), job_timeout='10m')
         
-        # 2. 更新當日與當月摘要
-        report_header = ["日期", "據點", "開店準備金", "本日銷售總額", "帳面總額", "盤點現金合計", "帳差", "交易筆數", "銷售件數"]
-        expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
-        report_data = [
-            business_day.date.strftime("%Y-%m-%d"), business_day.location.name, 
-            business_day.opening_cash, business_day.total_sales, expected_cash, 
-            None, None,
-            business_day.total_transactions, business_day.total_items
-        ]
-        current_app.task_queue.enqueue('app.services.google_service.update_live_summary_task', args=(location.id, report_data, report_header), job_timeout='10m')
-
         return jsonify({
             "success": True,
             "total_sales": business_day.total_sales,
@@ -225,13 +226,15 @@ def record_transaction():
         current_app.logger.error(f"記錄交易時發生錯誤: {e}", exc_info=True)
         return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
 
-@bp.route("/record_donation", methods=["POST"])
+# --- ** 最終修正點：改造為通用的其他收入路由 ** ---
+@bp.route("/record_other_income", methods=["POST"])
 @csrf.exempt
 @login_required
-def record_donation():
+def record_other_income():
     data = request.get_json()
     location_slug = data.get("location_slug")
     amount = data.get("amount")
+    income_type = data.get("type", "other") # 預設為 'other'
     today = date.today()
 
     try:
@@ -240,16 +243,21 @@ def record_donation():
         if not business_day:
             return jsonify({"success": False, "error": "找不到對應的營業中紀錄"}), 404
 
-        business_day.other_income = (business_day.other_income or 0) + amount
+        if income_type == 'donation':
+            business_day.donation_total = (business_day.donation_total or 0) + amount
+        else:
+            business_day.other_total = (business_day.other_total or 0) + amount
+        
         db.session.commit()
 
         return jsonify({
             "success": True,
-            "other_income": business_day.other_income
+            "donation_total": business_day.donation_total,
+            "other_total": business_day.other_total,
         })
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"記錄捐款時發生錯誤: {e}", exc_info=True)
+        current_app.logger.error(f"記錄其他收入時發生錯誤: {e}", exc_info=True)
         return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
 
 # ... (close_day, daily_report, confirm_report, print_report 路由維持不變) ...

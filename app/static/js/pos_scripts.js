@@ -5,102 +5,125 @@ document.addEventListener("DOMContentLoaded", function () {
     const displaySub = document.getElementById("display-sub");
     const receiptDetails = document.getElementById("receipt-details");
     
-    const calcButtons = document.querySelectorAll(".calc-btn");
+    const allButtons = document.querySelectorAll(".calc-btn, .category-btn");
+    const numberButtons = document.querySelectorAll(".number-btn");
+    const operatorButtons = document.querySelectorAll(".operator-btn");
+    const categoryButtons = document.querySelectorAll(".category-btn");
+    
     const equalsBtn = document.getElementById("equals-btn");
+    const checkoutBtn = document.getElementById("checkout-btn");
+    const clearBtn = document.querySelector('[data-action="clear"]');
+    const undoBtn = document.querySelector('[data-action="undo"]');
+    const backspaceBtn = document.querySelector('[data-action="backspace"]');
     const donationBtn = document.getElementById("donation-btn");
-
-    // --- 狀態常量 ---
-    const STATE = {
-        INPUTTING_ITEMS: 'inputting_items',      // 狀態一：輸入中
-        AWAITING_PAYMENT: 'awaiting_payment',    // 狀態二：等待收款
-        DISPLAYING_CHANGE: 'displaying_change',  // 狀態三：顯示找零 (交易結束)
-        DONATION_COMPLETE: 'donation_complete'   // 狀態四：顯示捐款 (捐款結束)
-    };
+    const otherIncomeBtn = document.getElementById("other-income-btn");
 
     // --- 狀態變數 ---
-    let currentState = STATE.INPUTTING_ITEMS;
     let expression = [];
     let currentInput = '0';
+    let transactionItems = [];
     let transactionTotal = 0;
-    let equalsTimeout = null;
-    const DOUBLE_PRESS_THRESHOLD = 400;
+    let inPaymentMode = false;
+    let isReadyForNewInput = false;
+    let resetTimeout = null;
 
-    // --- 核心功能函式 ---
-
+    // --- 核心顯示與計算 ---
     function updateDisplay() {
-        displayExpression.innerText = expression.join(' ');
+        const itemsStr = transactionItems.map(item => `${item.displayText}${item.categoryName}`).join('+').replace(/\+-/g, '-');
+        const expressionStr = expression.join(' ');
+        const operator = (expression.length > 0 && itemsStr) ? ' + ' : '';
+        displayExpression.innerText = `${itemsStr}${operator}${expressionStr}`;
         displayExpression.scrollLeft = displayExpression.scrollWidth;
         displayMain.innerText = parseFloat(currentInput).toLocaleString();
 
-        switch (currentState) {
-            case STATE.INPUTTING_ITEMS:
-                const containsOperator = expression.some(item => ['+', '-', '*', '/'].includes(item));
-                const isPositiveNumber = parseFloat(currentInput) > 0;
-                displaySub.innerText = '請輸入商品價格、折扣或捐款金額';
-                donationBtn.disabled = containsOperator || !isPositiveNumber;
-                equalsBtn.disabled = currentInput === '0' && expression.length === 0;
-                break;
-            case STATE.AWAITING_PAYMENT:
-                displaySub.innerText = `應收: ${transactionTotal.toLocaleString()} / 請輸入收款金額`;
-                donationBtn.disabled = false;
-                const amountPaidCheck = parseFloat(currentInput);
-                equalsBtn.disabled = isNaN(amountPaidCheck) || amountPaidCheck < transactionTotal;
-                break;
-            case STATE.DISPLAYING_CHANGE:
-                const amountPaid = parseFloat(currentInput);
-                const change = amountPaid - transactionTotal;
-                displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${amountPaid.toLocaleString()})`;
-                donationBtn.disabled = true;
-                equalsBtn.disabled = true;
-                break;
-            case STATE.DONATION_COMPLETE:
-                displaySub.innerText = '感謝您的愛心捐款！';
-                donationBtn.disabled = true;
-                equalsBtn.disabled = true;
-                break;
+        if (inPaymentMode) {
+            displaySub.innerText = `應收: ${transactionTotal.toLocaleString()} / 請輸入收款金額`;
+            const amountPaid = parseFloat(currentInput);
+            checkoutBtn.disabled = isNaN(amountPaid) || amountPaid < transactionTotal;
+            donationBtn.disabled = false;
+            otherIncomeBtn.disabled = false;
+        } else {
+            const total = calculateCurrentTotal();
+            displaySub.innerText = `小計: ${total.toLocaleString()}`;
+            const isPristine = currentInput === '0' && expression.length === 0 && transactionItems.length === 0;
+            equalsBtn.disabled = isPristine;
+            donationBtn.disabled = isPristine;
+            otherIncomeBtn.disabled = isPristine;
         }
     }
 
-    function resetCalculator() {
-        expression = [];
-        currentInput = '0';
-        transactionTotal = 0;
-        currentState = STATE.INPUTTING_ITEMS;
-        if(receiptDetails) receiptDetails.innerHTML = '<div class="flex-grow-1 d-flex align-items-center justify-content-center"><p class="text-muted m-0">暫無交易</p></div>';
-        clearTimeout(equalsTimeout);
-        equalsTimeout = null;
+    function calculateCurrentTotal() {
+        let itemsTotal = transactionItems.reduce((sum, item) => sum + item.price, 0);
+        try {
+            const tempExpression = [...expression, currentInput];
+            const currentExpressionValue = safeCalculate(tempExpression.join(' '));
+            return itemsTotal + currentExpressionValue;
+        } catch { return itemsTotal; }
+    }
+    
+    // --- 狀態切換 ---
+    function enterPaymentMode() {
+        inPaymentMode = true;
+        isReadyForNewInput = true;
+        transactionTotal = calculateCurrentTotal();
+        categoryButtons.forEach(btn => btn.disabled = true);
+        operatorButtons.forEach(btn => btn.disabled = true);
+        equalsBtn.style.display = 'none';
+        checkoutBtn.style.display = 'block';
+        currentInput = transactionTotal.toString();
         updateDisplay();
     }
     
-    function clearEntry() {
-        if ([STATE.DISPLAYING_CHANGE, STATE.DONATION_COMPLETE].includes(currentState)) {
-            resetCalculator();
-        } else {
-            currentInput = '0';
-        }
+    function exitPaymentMode(amountPaid) {
+        const change = amountPaid - transactionTotal;
+        displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${amountPaid.toLocaleString()})`;
+        updateReceiptForCheckout();
+        resetTimeout = setTimeout(resetCalculator, 10000); 
+    }
+
+    function resetCalculator() {
+        if (resetTimeout) { clearTimeout(resetTimeout); resetTimeout = null; }
+        inPaymentMode = false;
+        isReadyForNewInput = false;
+        expression = [];
+        currentInput = '0';
+        transactionItems = [];
+        transactionTotal = 0;
+        receiptDetails.innerHTML = '<div class="text-center text-muted m-auto">暫無商品</div>';
+        allButtons.forEach(btn => btn.disabled = false);
+        equalsBtn.style.display = 'block';
+        checkoutBtn.style.display = 'none';
         updateDisplay();
     }
 
-    function handleNumber(value) {
-        if ([STATE.DISPLAYING_CHANGE, STATE.DONATION_COMPLETE].includes(currentState)) {
-            resetCalculator();
+    // --- 核心按鈕處理函式 ---
+    function interruptResetAndContinue(handler) {
+        return function(...args) {
+            if (resetTimeout) {
+                resetCalculator();
+            }
+            handler(...args);
         }
-        if (currentInput === '0' && value !== '.') {
-            currentInput = value;
-        } else {
-            if (value === '.' && currentInput.includes('.')) return;
-            if (currentInput.length > 15) return;
-            currentInput += value;
-        }
-        updateDisplay();
     }
 
-    function handleOperator(op) {
-        if ([STATE.DISPLAYING_CHANGE, STATE.DONATION_COMPLETE].includes(currentState)) {
-            resetCalculator();
+    const handleNumber = interruptResetAndContinue(function(value) {
+        if (isReadyForNewInput) {
+            currentInput = value === '.' ? '0.' : value;
+            isReadyForNewInput = false;
+        } else {
+            if (currentInput === '0' && value !== '00' && value !== '.') { currentInput = value; } 
+            else {
+                if (value === '.' && currentInput.includes('.')) return;
+                if (currentInput === '0' && value === '00') return;
+                if (currentInput.length > 13) return;
+                currentInput += value;
+            }
         }
-        if (currentState !== STATE.INPUTTING_ITEMS) return;
-        
+        updateDisplay();
+    });
+
+    const handleOperator = interruptResetAndContinue(function(op) {
+        if (inPaymentMode) return;
         if (currentInput === '0' && expression.length > 0 && ['+', '-', '*', '/'].includes(expression[expression.length - 1])) {
             expression[expression.length - 1] = op;
         } else {
@@ -109,197 +132,249 @@ document.addEventListener("DOMContentLoaded", function () {
             currentInput = '0';
         }
         updateDisplay();
-    }
+    });
 
-    function handleBackspace() {
-        if ([STATE.DISPLAYING_CHANGE, STATE.DONATION_COMPLETE].includes(currentState)) {
-            resetCalculator();
-            return;
-        }
-        if (currentInput.length > 1) {
-            currentInput = currentInput.slice(0, -1);
-        } else if (currentInput !== '0') {
-            currentInput = '0';
-        } else if (expression.length > 0) {
-            expression.pop(); 
-            currentInput = expression.pop() || '0';
-        }
-        updateDisplay();
-    }
-
-    function handleEquals() {
-        if (equalsBtn.disabled) return;
-        if (currentState === STATE.INPUTTING_ITEMS) {
-            if (expression.length === 0 && currentInput === '0') return;
-            
-            expression.push(currentInput);
-            
-            if (['+', '-', '*', '/'].includes(expression[expression.length - 1])) {
-                expression.pop();
+    const handleCategory = interruptResetAndContinue(function(categoryId, categoryName) {
+        if (inPaymentMode) return;
+        const fullExpression = [...expression, currentInput].join(' ');
+        let quantity = 1;
+        let unitPrice = 0;
+        let totalPrice = 0;
+        let displayText = '';
+        if (fullExpression.includes('*')) {
+            const parts = fullExpression.split('*');
+            if (parts.length === 2 && !/[+\-/]/.test(parts[0]) && !/[+\-/]/.test(parts[1])) {
+                const parsedQty = parseInt(safeCalculate(parts[0]), 10);
+                const parsedPrice = safeCalculate(parts[1]);
+                if (!isNaN(parsedQty) && parsedQty > 0) {
+                    quantity = parsedQty;
+                    unitPrice = parsedPrice;
+                    displayText = `${quantity}*${unitPrice}`;
+                }
             }
-
+        }
+        if (displayText === '') {
             try {
-                transactionTotal = safeCalculate(expression.join(''));
-                currentState = STATE.AWAITING_PAYMENT;
-                currentInput = '0';
+                unitPrice = safeCalculate(fullExpression);
+                displayText = unitPrice.toString();
             } catch (e) {
-                displaySub.innerText = "計算錯誤";
-                setTimeout(resetCalculator, 1500);
+                displaySub.innerText = "計算錯誤"; return;
             }
-        } else if (currentState === STATE.AWAITING_PAYMENT) {
-            const amountPaid = parseFloat(currentInput);
-            if (isNaN(amountPaid) || amountPaid < transactionTotal) {
-                displaySub.innerText = "收款金額不足！";
-                return;
-            }
-            currentState = STATE.DISPLAYING_CHANGE;
-            sendTransaction(amountPaid);
         }
+        if (categoryName.includes('折扣')) {
+            unitPrice = -Math.abs(unitPrice);
+        }
+        totalPrice = quantity * unitPrice;
+        if (totalPrice === 0 && !categoryName.includes('折扣')) return;
+        transactionItems.push({
+            price: totalPrice,
+            unitPrice: unitPrice,
+            quantity: quantity,
+            category_id: categoryId,
+            categoryName: categoryName,
+            displayText: displayText
+        });
+        expression = [];
+        currentInput = '0';
+        updateReceipt();
         updateDisplay();
+    });
+    
+    // --- ** 最終修正點：恢復「復原」按鈕的正確邏輯 ** ---
+    const handleUndo = interruptResetAndContinue(function() {
+        if (inPaymentMode) return;
+    
+        const hasActiveEntry = (currentInput !== '0' || expression.length > 0);
+    
+        if (hasActiveEntry) {
+            currentInput = '0';
+            expression = [];
+        } 
+        else if (transactionItems.length > 0) {
+            transactionItems.pop();
+            updateReceipt();
+        }
+        
+        updateDisplay();
+    });
+
+    const handleBackspace = interruptResetAndContinue(function() {
+        if (currentInput.length > 1) { currentInput = currentInput.slice(0, -1); } 
+        else { currentInput = '0'; }
+        updateDisplay();
+    });
+    
+    async function handleCheckout() {
+        const amountPaid = parseFloat(currentInput);
+        if (checkoutBtn.disabled) return;
+        await sendTransaction();
+        exitPaymentMode(amountPaid);
+    }
+    
+    const handleOtherIncome = interruptResetAndContinue(async function(type) {
+        if (!inPaymentMode) {
+            const amount = parseFloat(currentInput);
+            if (isNaN(amount) || amount <= 0) return;
+            await sendOtherIncome(amount, type);
+            updateReceiptForOtherIncome(amount, type); 
+            resetTimeout = setTimeout(resetCalculator, 10000);
+        } else {
+            const amountPaid = parseFloat(currentInput);
+            const finalAmountPaid = (isNaN(amountPaid) || amountPaid < transactionTotal) ? transactionTotal : amountPaid;
+            await sendOtherIncome(transactionTotal, type);
+            const change = finalAmountPaid - transactionTotal;
+            displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${finalAmountPaid.toLocaleString()})`;
+            updateReceiptForOtherIncome(transactionTotal, type, true);
+            resetTimeout = setTimeout(resetCalculator, 10000);
+        }
+    });
+
+    function updateReceipt() {
+        if (transactionItems.length === 0) {
+            receiptDetails.innerHTML = '<div class="text-center text-muted m-auto">暫無商品</div>';
+        } else {
+            let itemsHtml = transactionItems.map(item => 
+                `<div class="d-flex justify-content-between align-items-center px-3 py-1">
+                    <span>${item.categoryName}</span>
+                    <span class="${item.price < 0 ? 'text-danger' : ''}">${item.price.toLocaleString()}</span>
+                </div>`
+            ).join('');
+            receiptDetails.innerHTML = `<div class="flex-grow-1">${itemsHtml}</div>`;
+        }
+        receiptDetails.scrollTop = receiptDetails.scrollHeight;
     }
 
-    function handleDonation() {
-        if (donationBtn.disabled) return;
-
-        if (currentState === STATE.INPUTTING_ITEMS) {
-            const donationAmount = parseFloat(currentInput);
-            if (isNaN(donationAmount) || donationAmount <= 0) {
-                displaySub.innerText = "請輸入有效捐款金額";
-                return;
-            }
-            sendDonation(donationAmount);
-            updateReceipt('donation', { amount: donationAmount });
-            currentState = STATE.DONATION_COMPLETE;
-
-        } else if (currentState === STATE.AWAITING_PAYMENT) {
-            const amountPaid = parseFloat(currentInput);
-            const finalAmountPaid = (currentInput === '0' || isNaN(amountPaid)) ? transactionTotal : amountPaid;
-            if (finalAmountPaid < transactionTotal) {
-                displaySub.innerText = "收款金額不足！";
-                return;
-            }
-            sendDonation(transactionTotal);
-            currentInput = finalAmountPaid.toString();
-            currentState = STATE.DISPLAYING_CHANGE;
-            updateReceipt('donation_with_change', { 
-                amount: transactionTotal,
-                paid: finalAmountPaid,
-                change: finalAmountPaid - transactionTotal
-            });
+    function updateReceiptForCheckout() {
+        const amountPaid = parseFloat(currentInput);
+        const change = amountPaid - transactionTotal;
+        const positiveItemsTotal = transactionItems.filter(item => item.price > 0).reduce((sum, item) => sum + item.price, 0);
+        const negativeItems = transactionItems.filter(item => item.price < 0);
+        let discountHtml = '<div style="height: 1.5rem;"></div>';
+        if (negativeItems.length > 0) {
+            discountHtml = negativeItems.map(item => 
+                `<div class="d-flex justify-content-between px-3 py-1">
+                    <span>${item.categoryName}</span>
+                    <span class="text-danger">${item.price.toLocaleString()}</span>
+                </div>`
+            ).join('');
         }
-        updateDisplay();
+        receiptDetails.innerHTML = `
+            <div class="p-2 d-flex flex-column h-100">
+                <div class="d-flex justify-content-between px-3 py-1">
+                    <span>商品總計</span>
+                    <span>${positiveItemsTotal.toLocaleString()}</span>
+                </div>
+                ${discountHtml}
+                <hr class="my-1">
+                <div class="flex-grow-1"></div>
+                <div>
+                    <div class="d-flex justify-content-between fw-bold px-3 py-1">
+                        <span>應收金額</span>
+                        <span>${transactionTotal.toLocaleString()}</span>
+                    </div>
+                    <div class="d-flex justify-content-between px-3 py-1">
+                        <span>實收現金</span>
+                        <span>${amountPaid.toLocaleString()}</span>
+                    </div>
+                    <div class="d-flex justify-content-between px-3 py-1">
+                        <span>找零</span>
+                        <span>${change.toLocaleString()}</span>
+                    </div>
+                </div>
+            </div>`;
+    }
+    
+    function updateReceiptForOtherIncome(amount, type, isFromTransaction = false) {
+        let title = type === 'donation' ? "愛心捐款" : "其他收入";
+        if (isFromTransaction) {
+            title = type === 'donation' ? "交易轉捐款" : "交易轉其他";
+        }
+        receiptDetails.innerHTML = `
+            <div class="text-center p-3 m-auto">
+                <h4 class="fw-bold mb-2">${title}</h4>
+                <p class="text-muted small mb-3">您的每一份支持，都是改變的力量</p>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between align-items-center fs-4 mt-3 px-3">
+                    <span class="text-success fw-bold">NT$</span>
+                    <span class="fw-bold">${amount.toLocaleString()}</span>
+                </div>
+            </div>`;
     }
 
-    function safeCalculate(expr) {
-        let sanitizedExpr = expr.replace(/[^0-9.+\-*/]/g, '').replace(/×/g, "*").replace(/÷/g, "/");
-        if (['+', '-', '*', '/'].includes(sanitizedExpr.slice(-1))) {
-            sanitizedExpr = sanitizedExpr.slice(0, -1);
+    function safeCalculate(exprStr) {
+        let sanitizedExpr = String(exprStr).replace(/[^0-9.+\-*/().\s]/g, '');
+        if (!sanitizedExpr.trim()) return 0;
+        if (['+', '-', '*', '/'].includes(sanitizedExpr.trim().slice(-1))) {
+            sanitizedExpr = sanitizedExpr.trim().slice(0, -1);
         }
         if (sanitizedExpr.trim() === '') return 0;
         return new Function('return ' + sanitizedExpr)();
     }
 
-    // --- 後端通訊 (保留原樣) ---
-    async function sendTransaction(amountPaid) {
-        if (typeof POS_LOCATION_SLUG === 'undefined') return;
-        const fullExpressionStr = expression.join('');
-        const parts = fullExpressionStr.split('-');
-        const saleItemsExpression = parts[0];
-        const discounts = parts.slice(1).map(d => parseFloat(d)).filter(d => !isNaN(d) && d > 0);
-        const items = saleItemsExpression.split(/[\+\*\/]/).filter(i => i !== '' && parseFloat(i) > 0);
+    async function sendTransaction() {
+        const expandedItems = [];
+        transactionItems.forEach(item => {
+            for (let i = 0; i < item.quantity; i++) {
+                expandedItems.push({
+                    price: item.unitPrice,
+                    category_id: item.category_id
+                });
+            }
+        });
         try {
             const response = await fetch("/cashier/record_transaction", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ location_slug: POS_LOCATION_SLUG, total: transactionTotal, items: items.length, discounts: discounts }),
+                body: JSON.stringify({
+                    location_slug: POS_LOCATION_SLUG,
+                    items: expandedItems
+                }),
             });
             if (!response.ok) throw new Error("網路回應不正確");
             const result = await response.json();
             if (result.success) {
-                updateSidebar(result);
-                updateReceipt('transaction', { itemTotal: transactionTotal + discounts.reduce((a, b) => a + b, 0), discounts: discounts, finalTotal: transactionTotal, paid: amountPaid, change: amountPaid - transactionTotal });
-            }
-        } catch (error) { console.error("記錄交易時發生錯誤:", error); displaySub.innerText = "傳送失敗"; }
+                if (document.getElementById("total-sales")) {
+                    document.getElementById("total-sales").innerText = `$ ${Math.round(result.total_sales).toLocaleString()}`;
+                    document.getElementById("total-transactions").innerText = result.total_transactions;
+                    document.getElementById("total-items").innerText = result.total_items;
+                }
+            } else { displaySub.innerText = `傳送失敗: ${result.error}`; }
+        } catch (error) { console.error("結帳時發生錯誤:", error); displaySub.innerText = "傳送失敗"; }
     }
-    async function sendDonation(amount) {
-        if (typeof POS_LOCATION_SLUG === 'undefined') return;
+    
+    async function sendOtherIncome(amount, type) {
         try {
-            const response = await fetch("/cashier/record_donation", {
+            const response = await fetch("/cashier/record_other_income", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ location_slug: POS_LOCATION_SLUG, amount: amount }),
+                body: JSON.stringify({ location_slug: POS_LOCATION_SLUG, amount: amount, type: type }),
             });
             if (!response.ok) throw new Error("網路回應不正確");
             const result = await response.json();
-            if (result.success && document.getElementById("other-income")) {
-                document.getElementById("other-income").innerText = `$ ${Math.round(result.other_income).toLocaleString()}`;
-            }
-        } catch (error) { console.error("記錄捐款時發生錯誤:", error); alert("記錄捐款失敗。"); }
-    }
-    function updateSidebar(data) {
-        if (document.getElementById("total-sales")) {
-            document.getElementById("total-sales").innerText = `$ ${Math.round(data.total_sales).toLocaleString()}`;
-            document.getElementById("total-transactions").innerText = data.total_transactions;
-            document.getElementById("total-items").innerText = data.total_items;
-        }
-    }
-
-    /**
-     * 修正點：統一捐款收據的顯示格式，使其符合截圖樣式
-     */
-    function updateReceipt(type, data) {
-        if (!receiptDetails) return;
-        receiptDetails.innerHTML = ''; 
-
-        if (type === 'transaction') {
-            let discountHtml = '<div style="height: 1.5rem;"></div>';
-            if (data.discounts && data.discounts.length > 0) { discountHtml = data.discounts.map(d => `<div class="d-flex justify-content-between"><span>折扣券</span><span>-${d.toLocaleString()}</span></div>`).join(''); }
-            receiptDetails.innerHTML = `<div><div class="d-flex justify-content-between"><span>商品總計</span><span>${(data.itemTotal || 0).toLocaleString()}</span></div>${discountHtml}</div><hr class="my-1"><div class="flex-grow-1"></div><div><div class="d-flex justify-content-between fw-bold"><span>應收金額</span><span>${(data.finalTotal || 0).toLocaleString()}</span></div><div class="d-flex justify-content-between"><span>實收現金</span><span>${(data.paid || 0).toLocaleString()}</span></div><div class="d-flex justify-content-between"><span>找零</span><span>${(data.change || 0).toLocaleString()}</span></div></div>`;
-        } 
-        // 針對所有捐款類型，使用統一的顯示格式
-        else if (type === 'donation' || type === 'donation_with_change') {
-            const donationAmount = data.amount || 0;
-            
-            receiptDetails.innerHTML = `
-                <div class="text-center pt-3 pb-2">
-                    <h4 class="fw-bold mb-2">愛心捐款</h4>
-                    <p class="text-muted small mb-3">您的每一份支持，都是改變的力量</p>
-                    <hr class="my-2">
-                    <div class="d-flex justify-content-between align-items-center fs-4 mt-3">
-                        <span class="text-success fw-bold">NT$</span>
-                        <span class="fw-bold">${donationAmount.toLocaleString()}</span>
-                    </div>
-                </div>
-            `;
-        }
+            if (result.success) {
+                if (document.getElementById("donation-total")) {
+                    document.getElementById("donation-total").innerText = `$ ${Math.round(result.donation_total).toLocaleString()}`;
+                }
+                if (document.getElementById("other-total")) {
+                    document.getElementById("other-total").innerText = `$ ${Math.round(result.other_total).toLocaleString()}`;
+                }
+                displaySub.innerText = type === 'donation' ? "感謝您的愛心捐款！" : "已記錄其他收入";
+            } else { displaySub.innerText = `記錄失敗: ${result.error}`; }
+        } catch (error) { console.error("記錄其他收入時發生錯誤:", error); displaySub.innerText = "記錄失敗，請檢查網路連線。"; }
     }
 
-    // --- 事件監聽 ---
-    calcButtons.forEach(button => {
-        button.addEventListener("click", () => {
-            const value = button.dataset.value;
-            const action = button.dataset.action;
-            if (value) { if (['+', '-', '*', '/'].includes(value)) handleOperator(value); else handleNumber(value); } 
-            else if (action) { if (action === 'clear') resetCalculator(); if (action === 'clearEntry') clearEntry(); if (action === 'backspace') handleBackspace(); }
-        });
-    });
-    equalsBtn.addEventListener("click", handleEquals);
-    donationBtn.addEventListener("click", handleDonation);
+    // --- 事件綁定 ---
+    numberButtons.forEach(btn => btn.addEventListener('click', () => handleNumber(btn.dataset.value)));
+    operatorButtons.forEach(btn => btn.addEventListener('click', () => handleOperator(btn.dataset.value)));
+    categoryButtons.forEach(btn => btn.addEventListener('click', () => handleCategory(btn.dataset.id, btn.dataset.name)));
+    equalsBtn.addEventListener('click', enterPaymentMode);
+    checkoutBtn.addEventListener('click', handleCheckout);
+    clearBtn.addEventListener('click', interruptResetAndContinue(resetCalculator));
+    undoBtn.addEventListener('click', handleUndo);
+    backspaceBtn.addEventListener('click', handleBackspace);
+    donationBtn.addEventListener('click', () => handleOtherIncome('donation'));
+    otherIncomeBtn.addEventListener('click', () => handleOtherIncome('other'));
 
-    // --- 鍵盤支援 ---
-    document.addEventListener("keydown", (event) => {
-        const key = event.key;
-        if (event.target === displayMain && !/^[0-9.]$/.test(key) && key.length === 1) { event.preventDefault(); }
-        if ((key >= '0' && key <= '9') || key === '.') handleNumber(key);
-        if (key === 'Enter' || key === '=') {
-            event.preventDefault();
-            if (equalsTimeout) { clearTimeout(equalsTimeout); equalsTimeout = null; handleDonation(); } 
-            else { equalsTimeout = setTimeout(() => { handleEquals(); equalsTimeout = null; }, DOUBLE_PRESS_THRESHOLD); }
-        }
-        if (['+', '-', '*', '/'].includes(key)) handleOperator(key);
-        if (key === 'Backspace') handleBackspace();
-        if (key.toLowerCase() === 'c' || key === 'Escape') resetCalculator();
-    });
-
+    // --- 初始化 ---
     resetCalculator();
 });

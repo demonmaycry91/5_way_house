@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+{{ page_header(
+    title=form_title,
+    subtitle='據點: ' ~ location.name,
+    button_url=url_for('admin.list_categories', location_id=location.id),
+    button_text='返回類別列表'
+) }}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                        <div class="form-text">例如：「生活用品」、「文具」、「捐款」或「折扣」。</div>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.color.label(class="form-label") }}
+                        {{ form.color(class="form-control form-control-color") }}
+                        <div class="form-text">選擇一個在 POS 介面上代表此類別的顏色。</div>
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

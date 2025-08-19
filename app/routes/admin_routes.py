@@ -1,8 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from ..models import Location, User, Role, Permission
+# --- 新增匯入 Category 模型 ---
+from ..models import Location, User, Role, Permission, Category
 from .. import db
-from ..forms import LocationForm, RoleForm, UserForm
+# --- 新增匯入 CategoryForm ---
+from ..forms import LocationForm, RoleForm, UserForm, CategoryForm
 from ..decorators import admin_required
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -52,6 +54,52 @@ def delete_location(location_id):
     db.session.commit()
     flash('據點已刪除', 'success')
     return redirect(url_for('admin.list_locations'))
+
+# --- 新增：商品類別管理 ---
+@bp.route('/locations/<int:location_id>/categories')
+def list_categories(location_id):
+    location = Location.query.get_or_404(location_id)
+    # 確保只顯示該據點的類別
+    categories = Category.query.filter_by(location_id=location.id).order_by(Category.id).all()
+    return render_template('admin/categories.html', location=location, categories=categories)
+
+@bp.route('/locations/<int:location_id>/categories/add', methods=['GET', 'POST'])
+def add_category(location_id):
+    location = Location.query.get_or_404(location_id)
+    form = CategoryForm()
+    if form.validate_on_submit():
+        new_category = Category(
+            name=form.name.data,
+            color=form.color.data,
+            location_id=location.id
+        )
+        db.session.add(new_category)
+        db.session.commit()
+        flash(f'類別 "{new_category.name}" 已成功新增至據點 "{location.name}"。', 'success')
+        return redirect(url_for('admin.list_categories', location_id=location.id))
+    return render_template('admin/category_form.html', form=form, form_title='新增商品類別', location=location)
+
+@bp.route('/categories/<int:category_id>/edit', methods=['GET', 'POST'])
+def edit_category(category_id):
+    category = Category.query.get_or_404(category_id)
+    location = category.location
+    form = CategoryForm(obj=category)
+    if form.validate_on_submit():
+        form.populate_obj(category)
+        db.session.commit()
+        flash(f'類別 "{category.name}" 已更新。', 'success')
+        return redirect(url_for('admin.list_categories', location_id=location.id))
+    return render_template('admin/category_form.html', form=form, form_title='編輯商品類別', location=location)
+
+@bp.route('/categories/<int:category_id>/delete', methods=['POST'])
+def delete_category(category_id):
+    category = Category.query.get_or_404(category_id)
+    location_id = category.location_id
+    # TODO: 檢查是否有交易品項關聯到此類別
+    db.session.delete(category)
+    db.session.commit()
+    flash('類別已刪除。', 'success')
+    return redirect(url_for('admin.list_categories', location_id=location_id))
 
 
 # --- 使用者管理 ---

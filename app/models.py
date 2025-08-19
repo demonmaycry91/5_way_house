@@ -67,9 +67,23 @@ class Location(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     slug = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    business_days = db.relationship('BusinessDay', back_populates='location', lazy=True)
+    business_days = db.relationship('BusinessDay', back_populates='location', lazy=True, cascade="all, delete-orphan")
+    categories = db.relationship('Category', back_populates='location', lazy=True, cascade="all, delete-orphan")
+
     def __repr__(self):
         return f'<Location {self.name}>'
+
+class Category(db.Model):
+    """商品類別模型"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    color = db.Column(db.String(7), nullable=False, default='#cccccc')
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
+    location = db.relationship('Location', back_populates='categories')
+    items = db.relationship('TransactionItem', back_populates='category', lazy=True)
+
+    def __repr__(self):
+        return f'<Category {self.name}>'
     
 class BusinessDay(db.Model):
     """營業日模型"""
@@ -90,11 +104,12 @@ class BusinessDay(db.Model):
     signature_operator = db.Column(db.Text, nullable=True)
     signature_reviewer = db.Column(db.Text, nullable=True)
     signature_cashier = db.Column(db.Text, nullable=True)
-    transactions = db.relationship('Transaction', backref='business_day', lazy=True)
+    transactions = db.relationship('Transaction', backref='business_day', lazy=True, cascade="all, delete-orphan")
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    # --- 新增：其他收入欄位 (用於捐款) ---
-    other_income = db.Column(db.Float, default=0.0)
+    # --- ** 最終修正點：將 other_income 拆分 ** ---
+    donation_total = db.Column(db.Float, default=0.0)
+    other_total = db.Column(db.Float, default=0.0)
 
     def __repr__(self):
         return f'<BusinessDay {self.date} - {self.location.name}>'
@@ -106,12 +121,22 @@ class Transaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     item_count = db.Column(db.Integer, nullable=False)
     business_day_id = db.Column(db.Integer, db.ForeignKey('business_day.id'), nullable=False)
-    
-    # --- 新增：折扣券欄位 ---
-    discounts = db.Column(db.Text, nullable=True) # 以 JSON 字串儲存折扣券列表
+    items = db.relationship('TransactionItem', back_populates='transaction', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Transaction {self.id} - Amount: {self.amount}>'
+
+class TransactionItem(db.Model):
+    """單一交易品項模型"""
+    id = db.Column(db.Integer, primary_key=True)
+    price = db.Column(db.Float, nullable=False)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('transaction.id'), nullable=False)
+    transaction = db.relationship('Transaction', back_populates='items')
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
+    category = db.relationship('Category', back_populates='items')
+
+    def __repr__(self):
+        return f'<TransactionItem {self.id} - Price: {self.price}>'
 
 class SystemSetting(db.Model):
     __tablename__ = 'system_setting'
