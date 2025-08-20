@@ -47,7 +47,7 @@
 
                     {# --- 計算機按鈕 --- #}
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="clear">C</button></div>
-                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn operator-btn" data-action="undo">CE</button></div>
+                    <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="undo">CE</button></div>
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn" data-action="backspace">⌫</button></div>
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-info calc-btn operator-btn" data-value="/">÷</button></div>
 
@@ -92,7 +92,7 @@
                 <span>交易明細</span>
             </div>
             {# --- ** 最終修正點：簡化容器結構 ** --- #}
-            <div id="receipt-details" class="d-flex flex-column" style="min-height: 250px; max-height: 250px; overflow-y: auto;">
+            <div id="receipt-details" style="min-height: 250px; max-height: 250px; overflow-y: scroll;">
                 <div class="text-center text-muted m-auto">暫無商品</div>
             </div>
         </div>

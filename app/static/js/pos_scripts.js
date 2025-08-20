@@ -4,12 +4,12 @@ document.addEventListener("DOMContentLoaded", function () {
     const displayMain = document.getElementById("display-main");
     const displaySub = document.getElementById("display-sub");
     const receiptDetails = document.getElementById("receipt-details");
-    
+
     const allButtons = document.querySelectorAll(".calc-btn, .category-btn");
     const numberButtons = document.querySelectorAll(".number-btn");
     const operatorButtons = document.querySelectorAll(".operator-btn");
     const categoryButtons = document.querySelectorAll(".category-btn");
-    
+
     const equalsBtn = document.getElementById("equals-btn");
     const checkoutBtn = document.getElementById("checkout-btn");
     const clearBtn = document.querySelector('[data-action="clear"]');
@@ -60,7 +60,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return itemsTotal + currentExpressionValue;
         } catch { return itemsTotal; }
     }
-    
+
     // --- 狀態切換 ---
     function enterPaymentMode() {
         inPaymentMode = true;
@@ -73,12 +73,12 @@ document.addEventListener("DOMContentLoaded", function () {
         currentInput = transactionTotal.toString();
         updateDisplay();
     }
-    
+
     function exitPaymentMode(amountPaid) {
         const change = amountPaid - transactionTotal;
         displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${amountPaid.toLocaleString()})`;
         updateReceiptForCheckout();
-        resetTimeout = setTimeout(resetCalculator, 10000); 
+        resetTimeout = setTimeout(resetCalculator, 10000);
     }
 
     function resetCalculator() {
@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // --- 核心按鈕處理函式 ---
     function interruptResetAndContinue(handler) {
-        return function(...args) {
+        return function (...args) {
             if (resetTimeout) {
                 resetCalculator();
             }
@@ -106,12 +106,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    const handleNumber = interruptResetAndContinue(function(value) {
+    const handleNumber = interruptResetAndContinue(function (value) {
         if (isReadyForNewInput) {
             currentInput = value === '.' ? '0.' : value;
             isReadyForNewInput = false;
         } else {
-            if (currentInput === '0' && value !== '00' && value !== '.') { currentInput = value; } 
+            if (currentInput === '0' && value !== '00' && value !== '.') { currentInput = value; }
             else {
                 if (value === '.' && currentInput.includes('.')) return;
                 if (currentInput === '0' && value === '00') return;
@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDisplay();
     });
 
-    const handleOperator = interruptResetAndContinue(function(op) {
+    const handleOperator = interruptResetAndContinue(function (op) {
         if (inPaymentMode) return;
         if (currentInput === '0' && expression.length > 0 && ['+', '-', '*', '/'].includes(expression[expression.length - 1])) {
             expression[expression.length - 1] = op;
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDisplay();
     });
 
-    const handleCategory = interruptResetAndContinue(function(categoryId, categoryName) {
+    const handleCategory = interruptResetAndContinue(function (categoryId, categoryName) {
         if (inPaymentMode) return;
         const fullExpression = [...expression, currentInput].join(' ');
         let quantity = 1;
@@ -179,44 +179,66 @@ document.addEventListener("DOMContentLoaded", function () {
         updateReceipt();
         updateDisplay();
     });
-    
+
     // --- ** 最終修正點：恢復「復原」按鈕的正確邏輯 ** ---
-    const handleUndo = interruptResetAndContinue(function() {
+    // const handleUndo = interruptResetAndContinue(function() {
+    //     if (inPaymentMode) return;
+
+    //     const hasActiveEntry = (currentInput !== '0' || expression.length > 0);
+
+    //     if (hasActiveEntry) {
+    //         currentInput = '0';
+    //         expression = [];
+    //     } 
+    //     else if (transactionItems.length > 0) {
+    //         transactionItems.pop();
+    //         updateReceipt();
+    //     }
+
+    //     updateDisplay();
+    // });
+
+    // --- ** 最終修正點：恢復「復原」按鈕的正確邏輯 ** ---
+    const handleUndo = interruptResetAndContinue(function () {
         if (inPaymentMode) return;
-    
+
+        // 判斷當前是否有正在輸入的數字或運算式
         const hasActiveEntry = (currentInput !== '0' || expression.length > 0);
-    
+
         if (hasActiveEntry) {
+            // 第一階段：僅清除當前輸入
             currentInput = '0';
             expression = [];
-        } 
-        else if (transactionItems.length > 0) {
-            transactionItems.pop();
-            updateReceipt();
         }
-        
+        else if (transactionItems.length > 0) {
+            // 第二階段：如果沒有輸入，則移除最後一個交易品項
+            transactionItems.pop();
+            updateReceipt(); // 更新右側明細
+        }
+
+        // 無論執行哪個階段，都重新計算並更新一次顯示
         updateDisplay();
     });
 
-    const handleBackspace = interruptResetAndContinue(function() {
-        if (currentInput.length > 1) { currentInput = currentInput.slice(0, -1); } 
+    const handleBackspace = interruptResetAndContinue(function () {
+        if (currentInput.length > 1) { currentInput = currentInput.slice(0, -1); }
         else { currentInput = '0'; }
         updateDisplay();
     });
-    
+
     async function handleCheckout() {
         const amountPaid = parseFloat(currentInput);
         if (checkoutBtn.disabled) return;
         await sendTransaction();
         exitPaymentMode(amountPaid);
     }
-    
-    const handleOtherIncome = interruptResetAndContinue(async function(type) {
+
+    const handleOtherIncome = interruptResetAndContinue(async function (type) {
         if (!inPaymentMode) {
             const amount = parseFloat(currentInput);
             if (isNaN(amount) || amount <= 0) return;
             await sendOtherIncome(amount, type);
-            updateReceiptForOtherIncome(amount, type); 
+            updateReceiptForOtherIncome(amount, type);
             resetTimeout = setTimeout(resetCalculator, 10000);
         } else {
             const amountPaid = parseFloat(currentInput);
@@ -233,13 +255,18 @@ document.addEventListener("DOMContentLoaded", function () {
         if (transactionItems.length === 0) {
             receiptDetails.innerHTML = '<div class="text-center text-muted m-auto">暫無商品</div>';
         } else {
-            let itemsHtml = transactionItems.map(item => 
+            let itemsHtml = transactionItems.map(item =>
+                // 保持原本的商品行樣式
                 `<div class="d-flex justify-content-between align-items-center px-3 py-1">
-                    <span>${item.categoryName}</span>
-                    <span class="${item.price < 0 ? 'text-danger' : ''}">${item.price.toLocaleString()}</span>
-                </div>`
+                <span>${item.categoryName}</span>
+                <span class="${item.price < 0 ? 'text-danger' : ''}">${item.price.toLocaleString()}</span>
+            </div>`
             ).join('');
-            receiptDetails.innerHTML = `<div class="flex-grow-1">${itemsHtml}</div>`;
+            // 在外面包裹一個和結帳時結構相同的父容器
+            receiptDetails.innerHTML = `
+            <div class="p-2 d-flex flex-column h-100">
+                <div class="flex-grow-1">${itemsHtml}</div>
+            </div>`;
         }
         receiptDetails.scrollTop = receiptDetails.scrollHeight;
     }
@@ -251,39 +278,40 @@ document.addEventListener("DOMContentLoaded", function () {
         const negativeItems = transactionItems.filter(item => item.price < 0);
         let discountHtml = '<div style="height: 1.5rem;"></div>';
         if (negativeItems.length > 0) {
-            discountHtml = negativeItems.map(item => 
+            discountHtml = negativeItems.map(item =>
                 `<div class="d-flex justify-content-between px-3 py-1">
-                    <span>${item.categoryName}</span>
-                    <span class="text-danger">${item.price.toLocaleString()}</span>
-                </div>`
+                <span>${item.categoryName}</span>
+                <span class="text-danger">${item.price.toLocaleString()}</span>
+            </div>`
             ).join('');
         }
+        // 確認這裡的父容器和上面修改後的一致
         receiptDetails.innerHTML = `
-            <div class="p-2 d-flex flex-column h-100">
+        <div class="p-2 d-flex flex-column h-100">
+            <div class="d-flex justify-content-between px-3 py-1">
+                <span>商品總計</span>
+                <span>${positiveItemsTotal.toLocaleString()}</span>
+            </div>
+            ${discountHtml}
+            <hr class="my-1">
+            <div class="flex-grow-1"></div>
+            <div>
+                <div class="d-flex justify-content-between fw-bold px-3 py-1">
+                    <span>應收金額</span>
+                    <span>${transactionTotal.toLocaleString()}</span>
+                </div>
                 <div class="d-flex justify-content-between px-3 py-1">
-                    <span>商品總計</span>
-                    <span>${positiveItemsTotal.toLocaleString()}</span>
+                    <span>實收現金</span>
+                    <span>${amountPaid.toLocaleString()}</span>
                 </div>
-                ${discountHtml}
-                <hr class="my-1">
-                <div class="flex-grow-1"></div>
-                <div>
-                    <div class="d-flex justify-content-between fw-bold px-3 py-1">
-                        <span>應收金額</span>
-                        <span>${transactionTotal.toLocaleString()}</span>
-                    </div>
-                    <div class="d-flex justify-content-between px-3 py-1">
-                        <span>實收現金</span>
-                        <span>${amountPaid.toLocaleString()}</span>
-                    </div>
-                    <div class="d-flex justify-content-between px-3 py-1">
-                        <span>找零</span>
-                        <span>${change.toLocaleString()}</span>
-                    </div>
+                <div class="d-flex justify-content-between px-3 py-1">
+                    <span>找零</span>
+                    <span>${change.toLocaleString()}</span>
                 </div>
-            </div>`;
+            </div>
+        </div>`;
     }
-    
+
     function updateReceiptForOtherIncome(amount, type, isFromTransaction = false) {
         let title = type === 'donation' ? "愛心捐款" : "其他收入";
         if (isFromTransaction) {
@@ -341,7 +369,7 @@ document.addEventListener("DOMContentLoaded", function () {
             } else { displaySub.innerText = `傳送失敗: ${result.error}`; }
         } catch (error) { console.error("結帳時發生錯誤:", error); displaySub.innerText = "傳送失敗"; }
     }
-    
+
     async function sendOtherIncome(amount, type) {
         try {
             const response = await fetch("/cashier/record_other_income", {
