@@ -18,6 +18,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const donationBtn = document.getElementById("donation-btn");
     const otherIncomeBtn = document.getElementById("other-income-btn");
 
+    // --- [新增] 選取所有需要同步調整字體的元素 ---
+    const responsiveElements = document.querySelectorAll('.responsive-h3');
+
     // --- 狀態變數 ---
     let expression = [];
     let currentInput = '0';
@@ -27,6 +30,62 @@ document.addEventListener("DOMContentLoaded", function () {
     let isReadyForNewInput = false;
     let resetTimeout = null;
 
+    // --- [全新修正版] 智慧調整字體大小 ---
+    function adjustFontSizes() {
+        if (responsiveElements.length === 0) return;
+
+        const maxFontSizeRem = 1.75;
+        const minFontSizeRem = 0.75; // 設定最小字體大小，防止過小
+
+        // 步驟 1: 先重置為最大字體，以便準確測量
+        responsiveElements.forEach(el => {
+            el.style.fontSize = `${maxFontSizeRem}rem`;
+        });
+
+        let maxOverflowRatio = 1.0;
+        // 步驟 2: 找出最滿的那個元素（溢出比例最大）
+        responsiveElements.forEach(el => {
+            if (el.offsetWidth > 0) { // 確保容器寬度大於 0
+                const ratio = el.scrollWidth / el.offsetWidth;
+                if (ratio > maxOverflowRatio) {
+                    maxOverflowRatio = ratio;
+                }
+            }
+        });
+
+        let newFontSizeRem = maxFontSizeRem;
+        // 步驟 3: 如果有任何元素溢出，就根據最大溢出比例計算新字體大小
+        if (maxOverflowRatio > 1.0) {
+            newFontSizeRem = maxFontSizeRem / maxOverflowRatio;
+        }
+
+        // 步驟 4: 確保新字體大小不會小於我們設定的下限
+        if (newFontSizeRem < minFontSizeRem) {
+            newFontSizeRem = minFontSizeRem;
+        }
+
+        // 步驟 5: 將計算出的、統一的字體大小應用到所有元素
+        responsiveElements.forEach(el => {
+            el.style.fontSize = `${newFontSizeRem}rem`;
+        });
+    }
+
+    // --- [新增] 統一格式化函式 ---
+function reformatInitialValues() {
+    responsiveElements.forEach(el => {
+        const text = el.innerText.replace(/[^0-9.]/g, '');
+        const number = parseFloat(text) || 0;
+
+        // 判斷 ID 是否為'total-transactions' 或 'total-items'
+        if (el.id === 'total-transactions' || el.id === 'total-items') {
+            // 如果是，則只格式化數字，不加錢字號
+            el.innerText = number.toLocaleString('en-US');
+        } else {
+            // 否則，就是金額，要加上錢字號
+            el.innerText = `$ ${number.toLocaleString('en-US')}`;
+        }
+    });
+}
     // --- 核心顯示與計算 ---
     function updateDisplay() {
         const itemsStr = transactionItems.map(item => `${item.displayText}${item.categoryName}`).join('+').replace(/\+-/g, '-');
@@ -89,7 +148,12 @@ document.addEventListener("DOMContentLoaded", function () {
         currentInput = '0';
         transactionItems = [];
         transactionTotal = 0;
-        receiptDetails.innerHTML = '<div class="text-center text-muted m-auto">暫無商品</div>';
+
+        // 步驟 1: 直接賦予容器 Flexbox 居中樣式
+        receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
+        // 步驟 2: 放入最簡單的 HTML 內容
+        receiptDetails.innerHTML = '<span class="text-muted">暫無商品</span>';
+
         allButtons.forEach(btn => btn.disabled = false);
         equalsBtn.style.display = 'block';
         checkoutBtn.style.display = 'none';
@@ -253,16 +317,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function updateReceipt() {
         if (transactionItems.length === 0) {
-            receiptDetails.innerHTML = '<div class="text-center text-muted m-auto">暫無商品</div>';
+            // 狀態一：沒有商品，恢復容器的 Flexbox 居中樣式
+            receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
+            receiptDetails.innerHTML = '<span class="text-muted">暫無商品</span>';
         } else {
+            // 狀態二：有商品，清空容器的所有樣式 class
+            receiptDetails.className = '';
+
             let itemsHtml = transactionItems.map(item =>
-                // 保持原本的商品行樣式
                 `<div class="d-flex justify-content-between align-items-center px-3 py-1">
                 <span>${item.categoryName}</span>
                 <span class="${item.price < 0 ? 'text-danger' : ''}">${item.price.toLocaleString()}</span>
             </div>`
             ).join('');
-            // 在外面包裹一個和結帳時結構相同的父容器
+
+            // 放入我們之前為了對齊而設計的、帶 p-2 的統一結構
             receiptDetails.innerHTML = `
             <div class="p-2 d-flex flex-column h-100">
                 <div class="flex-grow-1">${itemsHtml}</div>
@@ -270,7 +339,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         receiptDetails.scrollTop = receiptDetails.scrollHeight;
     }
-
     function updateReceiptForCheckout() {
         const amountPaid = parseFloat(currentInput);
         const change = amountPaid - transactionTotal;
@@ -380,12 +448,24 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!response.ok) throw new Error("網路回應不正確");
             const result = await response.json();
             if (result.success) {
-                if (document.getElementById("donation-total")) {
-                    document.getElementById("donation-total").innerText = `$ ${Math.round(result.donation_total).toLocaleString()}`;
+                const donationTotalEl = document.getElementById("donation-total");
+                const otherTotalEl = document.getElementById("other-total");
+                const otherIncomeTotalEl = document.getElementById("other-income-total");
+
+                if (donationTotalEl) {
+                    donationTotalEl.innerText = `$ ${Math.round(result.donation_total).toLocaleString()}`;
                 }
-                if (document.getElementById("other-total")) {
-                    document.getElementById("other-total").innerText = `$ ${Math.round(result.other_total).toLocaleString()}`;
+                if (otherTotalEl) {
+                    otherTotalEl.innerText = `$ ${Math.round(result.other_total).toLocaleString()}`;
                 }
+
+                // --- ↓↓↓ 新增的核心程式碼 ↓↓↓ ---
+                if (otherIncomeTotalEl) {
+                    const totalOtherIncome = (result.donation_total || 0) + (result.other_total || 0);
+                    otherIncomeTotalEl.innerText = `$ ${Math.round(totalOtherIncome).toLocaleString()}`;
+                }
+                // --- ↑↑↑ 新增結束 ↑↑↑ ---
+
                 displaySub.innerText = type === 'donation' ? "感謝您的愛心捐款！" : "已記錄其他收入";
             } else { displaySub.innerText = `記錄失敗: ${result.error}`; }
         } catch (error) { console.error("記錄其他收入時發生錯誤:", error); displaySub.innerText = "記錄失敗，請檢查網路連線。"; }
@@ -403,6 +483,10 @@ document.addEventListener("DOMContentLoaded", function () {
     donationBtn.addEventListener('click', () => handleOtherIncome('donation'));
     otherIncomeBtn.addEventListener('click', () => handleOtherIncome('other'));
 
+
     // --- 初始化 ---
     resetCalculator();
+    reformatInitialValues(); // <--- 在這裡新增函式呼叫
+    adjustFontSizes(); // 頁面載入時先執行一次
+    window.addEventListener('resize', adjustFontSizes); // 視窗大小改變時也要執行
 });
