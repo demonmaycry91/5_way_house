@@ -1,0 +1,17 @@
+{
+    "name": "五味屋 POS 系統",
+    "short_name": "POS",
+    "description": "五味屋使用的 POS 收銀系統",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f8f9fa",
+    "theme_color": "#212529",
+    "icons": [
+        {
+            "src": "/static/images/logo.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}
