@@ -17,98 +17,51 @@ document.addEventListener("DOMContentLoaded", function () {
     const backspaceBtn = document.querySelector('[data-action="backspace"]');
     const donationBtn = document.getElementById("donation-btn");
     const otherIncomeBtn = document.getElementById("other-income-btn");
-
-    // --- [新增] 選取所有需要同步調整字體的元素 ---
+    
     const responsiveElements = document.querySelectorAll('.responsive-h3');
 
     // --- 狀態變數 ---
     let expression = [];
     let currentInput = '0';
     let transactionItems = [];
-    let transactionTotal = 0;
-    let inPaymentMode = false;
+    let subtotal = 0;
     let isReadyForNewInput = false;
     let resetTimeout = null;
+
+    let inPaymentMode = false;
+    let inDiscountMode = false;
+    let discountInfo = {};
 
     // --- [全新修正版] 智慧調整字體大小 ---
     function adjustFontSizes() {
         if (responsiveElements.length === 0) return;
-
         const maxFontSizeRem = 1.75;
-        const minFontSizeRem = 0.75; // 設定最小字體大小，防止過小
-
-        // 步驟 1: 先重置為最大字體，以便準確測量
-        responsiveElements.forEach(el => {
-            el.style.fontSize = `${maxFontSizeRem}rem`;
-        });
-
+        const minFontSizeRem = 0.75;
+        responsiveElements.forEach(el => { el.style.fontSize = `${maxFontSizeRem}rem`; });
         let maxOverflowRatio = 1.0;
-        // 步驟 2: 找出最滿的那個元素（溢出比例最大）
         responsiveElements.forEach(el => {
-            if (el.offsetWidth > 0) { // 確保容器寬度大於 0
+            if (el.offsetWidth > 0) {
                 const ratio = el.scrollWidth / el.offsetWidth;
-                if (ratio > maxOverflowRatio) {
-                    maxOverflowRatio = ratio;
-                }
+                if (ratio > maxOverflowRatio) { maxOverflowRatio = ratio; }
             }
         });
-
         let newFontSizeRem = maxFontSizeRem;
-        // 步驟 3: 如果有任何元素溢出，就根據最大溢出比例計算新字體大小
-        if (maxOverflowRatio > 1.0) {
-            newFontSizeRem = maxFontSizeRem / maxOverflowRatio;
-        }
-
-        // 步驟 4: 確保新字體大小不會小於我們設定的下限
-        if (newFontSizeRem < minFontSizeRem) {
-            newFontSizeRem = minFontSizeRem;
-        }
-
-        // 步驟 5: 將計算出的、統一的字體大小應用到所有元素
-        responsiveElements.forEach(el => {
-            el.style.fontSize = `${newFontSizeRem}rem`;
-        });
+        if (maxOverflowRatio > 1.0) { newFontSizeRem = maxFontSizeRem / maxOverflowRatio; }
+        if (newFontSizeRem < minFontSizeRem) { newFontSizeRem = minFontSizeRem; }
+        responsiveElements.forEach(el => { el.style.fontSize = `${newFontSizeRem}rem`; });
     }
 
-    // --- [新增] 統一格式化函式 ---
-function reformatInitialValues() {
-    responsiveElements.forEach(el => {
-        const text = el.innerText.replace(/[^0-9.]/g, '');
-        const number = parseFloat(text) || 0;
-
-        // 判斷 ID 是否為'total-transactions' 或 'total-items'
-        if (el.id === 'total-transactions' || el.id === 'total-items') {
-            // 如果是，則只格式化數字，不加錢字號
-            el.innerText = number.toLocaleString('en-US');
-        } else {
-            // 否則，就是金額，要加上錢字號
-            el.innerText = `$ ${number.toLocaleString('en-US')}`;
-        }
-    });
-}
-    // --- 核心顯示與計算 ---
-    function updateDisplay() {
-        const itemsStr = transactionItems.map(item => `${item.displayText}${item.categoryName}`).join('+').replace(/\+-/g, '-');
-        const expressionStr = expression.join(' ');
-        const operator = (expression.length > 0 && itemsStr) ? ' + ' : '';
-        displayExpression.innerText = `${itemsStr}${operator}${expressionStr}`;
-        displayExpression.scrollLeft = displayExpression.scrollWidth;
-        displayMain.innerText = parseFloat(currentInput).toLocaleString();
-
-        if (inPaymentMode) {
-            displaySub.innerText = `應收: ${transactionTotal.toLocaleString()} / 請輸入收款金額`;
-            const amountPaid = parseFloat(currentInput);
-            checkoutBtn.disabled = isNaN(amountPaid) || amountPaid < transactionTotal;
-            donationBtn.disabled = false;
-            otherIncomeBtn.disabled = false;
-        } else {
-            const total = calculateCurrentTotal();
-            displaySub.innerText = `小計: ${total.toLocaleString()}`;
-            const isPristine = currentInput === '0' && expression.length === 0 && transactionItems.length === 0;
-            equalsBtn.disabled = isPristine;
-            donationBtn.disabled = isPristine;
-            otherIncomeBtn.disabled = isPristine;
-        }
+    // --- 統一格式化函式 ---
+    function reformatInitialValues() {
+        responsiveElements.forEach(el => {
+            const text = el.innerText.replace(/[^0-9.]/g, '');
+            const number = parseFloat(text) || 0;
+            if (el.id === 'total-transactions' || el.id === 'total-items') {
+                el.innerText = number.toLocaleString('en-US');
+            } else {
+                el.innerText = `$ ${number.toLocaleString('en-US')}`;
+            }
+        });
     }
 
     function calculateCurrentTotal() {
@@ -120,47 +73,57 @@ function reformatInitialValues() {
         } catch { return itemsTotal; }
     }
 
-    // --- 狀態切換 ---
-    function enterPaymentMode() {
+    function enterPaymentMode(finalTotal) {
         inPaymentMode = true;
+        inDiscountMode = false;
         isReadyForNewInput = true;
-        transactionTotal = calculateCurrentTotal();
-        categoryButtons.forEach(btn => btn.disabled = true);
-        operatorButtons.forEach(btn => btn.disabled = true);
+
         equalsBtn.style.display = 'none';
         checkoutBtn.style.display = 'block';
-        currentInput = transactionTotal.toString();
-        updateDisplay();
-    }
 
-    function exitPaymentMode(amountPaid) {
-        const change = amountPaid - transactionTotal;
-        displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${amountPaid.toLocaleString()})`;
-        updateReceiptForCheckout();
-        resetTimeout = setTimeout(resetCalculator, 10000);
+        // 啟用所有包含「鄉親卡」或「全場」的類別按鈕，禁用其他
+        categoryButtons.forEach(btn => {
+            const name = btn.dataset.name;
+            if (name.includes('鄉親卡') || name.includes('全場')) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        });
+
+        operatorButtons.forEach(btn => btn.disabled = true);
+        donationBtn.disabled = false;
+        otherIncomeBtn.disabled = false;
+
+        currentInput = finalTotal.toString();
+        displayMain.innerText = finalTotal.toLocaleString();
+        displaySub.innerText = `應收: ${finalTotal.toLocaleString()} / 請輸入收款金額`;
     }
 
     function resetCalculator() {
         if (resetTimeout) { clearTimeout(resetTimeout); resetTimeout = null; }
-        inPaymentMode = false;
-        isReadyForNewInput = false;
+
         expression = [];
         currentInput = '0';
         transactionItems = [];
-        transactionTotal = 0;
+        subtotal = 0;
+        isReadyForNewInput = false;
+        inPaymentMode = false;
+        inDiscountMode = false;
+        discountInfo = {};
 
-        // 步驟 1: 直接賦予容器 Flexbox 居中樣式
         receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
-        // 步驟 2: 放入最簡單的 HTML 內容
         receiptDetails.innerHTML = '<span class="text-muted">暫無商品</span>';
 
         allButtons.forEach(btn => btn.disabled = false);
         equalsBtn.style.display = 'block';
         checkoutBtn.style.display = 'none';
-        updateDisplay();
+
+        displayMain.innerText = '0';
+        displaySub.innerText = '小計: 0';
+        displayExpression.innerText = '';
     }
 
-    // --- 核心按鈕處理函式 ---
     function interruptResetAndContinue(handler) {
         return function (...args) {
             if (resetTimeout) {
@@ -183,7 +146,7 @@ function reformatInitialValues() {
                 currentInput += value;
             }
         }
-        updateDisplay();
+        displayMain.innerText = parseFloat(currentInput).toLocaleString();
     });
 
     const handleOperator = interruptResetAndContinue(function (op) {
@@ -194,11 +157,22 @@ function reformatInitialValues() {
             expression.push(currentInput);
             expression.push(op);
             currentInput = '0';
+            isReadyForNewInput = true;
         }
-        updateDisplay();
+        displayExpression.innerText = [...transactionItems.map(i => i.displayText), ...expression].join(' ');
     });
 
-    const handleCategory = interruptResetAndContinue(function (categoryId, categoryName) {
+    const handleCategoryClick = interruptResetAndContinue(function (categoryId, categoryName) {
+        const isDiscountButton = categoryName.includes('鄉親卡') || categoryName.includes('全場');
+
+        if (isDiscountButton) {
+            handleDiscount(categoryId, categoryName);
+        } else {
+            addTransactionItem(categoryId, categoryName);
+        }
+    });
+
+    function addTransactionItem(categoryId, categoryName) {
         if (inPaymentMode) return;
         const fullExpression = [...expression, currentInput].join(' ');
         let quantity = 1;
@@ -225,11 +199,24 @@ function reformatInitialValues() {
                 displaySub.innerText = "計算錯誤"; return;
             }
         }
-        if (categoryName.includes('折扣')) {
+        if (categoryName.includes('折扣') && !categoryName.includes('鄉親卡') && !categoryName.includes('全場')) {
             unitPrice = -Math.abs(unitPrice);
         }
+
+        const isCouponDiscount = categoryName.includes('折扣') && !categoryName.includes('鄉親卡') && !categoryName.includes('全場');
+        
+        if (isCouponDiscount) {
+            unitPrice = -Math.abs(unitPrice);
+            // 如果是折扣卷，displayText 應該直接就是負數金額
+            // 這確保了 displayText 和 price 的符號一致
+            displayText = unitPrice.toString();
+        }
+
         totalPrice = quantity * unitPrice;
-        if (totalPrice === 0 && !categoryName.includes('折扣')) return;
+        if (totalPrice === 0) {
+            // 無論是什麼類別，只要金額為 0 就直接返回，不做任何事
+            return;
+        }
         transactionItems.push({
             price: totalPrice,
             unitPrice: unitPrice,
@@ -241,143 +228,223 @@ function reformatInitialValues() {
         expression = [];
         currentInput = '0';
         updateReceipt();
-        updateDisplay();
+        displaySub.innerText = `小計: ${calculateCurrentTotal().toLocaleString()}`;
+
+        // --- ↓↓↓ 核心修正點 (第二部分) ↓↓↓ ---
+        // 更新算式組合邏輯，以正確處理負號
+        displayExpression.innerText = transactionItems
+            .map(i => i.displayText)
+            .join('+')
+            .replace(/\+-/g, ' - ');
+        // --- ↑↑↑ 修正結束 ↑↑↑ ---
+
+        
+    }
+
+    const handleEquals = interruptResetAndContinue(function () {
+        if (inDiscountMode) {
+            const discountValue = parseFloat(currentInput);
+            if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
+                displaySub.innerText = "錯誤：請輸入有效的折扣數字";
+                return;
+            }
+            let discountMultiplier = discountValue / 100;
+            if (discountValue < 10) {
+                discountMultiplier = discountValue / 10;
+            }
+            const discountAmount = -Math.round(subtotal * (1 - discountMultiplier));
+            transactionItems = transactionItems.filter(item => item.category_id !== discountInfo.categoryId);
+            transactionItems.push({
+                price: discountAmount,
+                unitPrice: discountAmount,
+                quantity: 1,
+                category_id: discountInfo.categoryId,
+                categoryName: discountInfo.categoryName,
+                displayText: `${discountValue}折`
+            });
+            const finalTotal = subtotal + discountAmount;
+            updateReceipt();
+            enterPaymentMode(finalTotal);
+        } else if (!inPaymentMode) {
+            subtotal = calculateCurrentTotal();
+            expression = [];
+            currentInput = '0';
+            enterPaymentMode(subtotal);
+        }
     });
 
-    // --- ** 最終修正點：恢復「復原」按鈕的正確邏輯 ** ---
-    // const handleUndo = interruptResetAndContinue(function() {
-    //     if (inPaymentMode) return;
+    function handleDiscount(categoryId, categoryName) {
+        if (!inPaymentMode) return;
+        
+        discountInfo = {
+            categoryId: categoryId,
+            categoryName: categoryName
+        };
+        
+        inDiscountMode = true;
+        isReadyForNewInput = true;
+        currentInput = '0';
 
-    //     const hasActiveEntry = (currentInput !== '0' || expression.length > 0);
+        displaySub.innerText = `請輸入折扣數 (例如 9折 輸入 9, 88折 輸入 88)`;
+        
+        equalsBtn.style.display = 'block';
+        checkoutBtn.style.display = 'none';
+        
+        categoryButtons.forEach(btn => btn.disabled = true);
+    }
 
-    //     if (hasActiveEntry) {
-    //         currentInput = '0';
-    //         expression = [];
-    //     } 
-    //     else if (transactionItems.length > 0) {
-    //         transactionItems.pop();
-    //         updateReceipt();
-    //     }
-
-    //     updateDisplay();
-    // });
-
-    // --- ** 最終修正點：恢復「復原」按鈕的正確邏輯 ** ---
     const handleUndo = interruptResetAndContinue(function () {
         if (inPaymentMode) return;
-
-        // 判斷當前是否有正在輸入的數字或運算式
         const hasActiveEntry = (currentInput !== '0' || expression.length > 0);
-
         if (hasActiveEntry) {
-            // 第一階段：僅清除當前輸入
             currentInput = '0';
             expression = [];
         }
         else if (transactionItems.length > 0) {
-            // 第二階段：如果沒有輸入，則移除最後一個交易品項
             transactionItems.pop();
-            updateReceipt(); // 更新右側明細
+            updateReceipt();
         }
+        // --- ↓↓↓ 核心修正點 ↓↓↓ ---
+        displayExpression.innerText = transactionItems
+            .map(i => i.displayText)
+            .join('+')
+            .replace(/\+-/g, ' - ');
+        // --- ↑↑↑ 修正結束 ↑↑↑ ---
 
-        // 無論執行哪個階段，都重新計算並更新一次顯示
-        updateDisplay();
+        displayMain.innerText = currentInput;
+        displaySub.innerText = `小計: ${calculateCurrentTotal().toLocaleString()}`;
     });
 
     const handleBackspace = interruptResetAndContinue(function () {
         if (currentInput.length > 1) { currentInput = currentInput.slice(0, -1); }
         else { currentInput = '0'; }
-        updateDisplay();
+        displayMain.innerText = parseFloat(currentInput).toLocaleString();
     });
 
     async function handleCheckout() {
         const amountPaid = parseFloat(currentInput);
-        if (checkoutBtn.disabled) return;
+        const finalTotalStr = displayMain.innerText.replace(/[^0-9.-]+/g, "");
+        const finalTotal = parseFloat(finalTotalStr);
+
+        if (isNaN(amountPaid) || amountPaid < finalTotal) {
+            displaySub.innerText = `金額不足，應收: ${finalTotal.toLocaleString()}`;
+            return;
+        }
+
         await sendTransaction();
-        exitPaymentMode(amountPaid);
+
+        const change = amountPaid - finalTotal;
+        displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${amountPaid.toLocaleString()})`;
+        updateReceiptForCheckout(amountPaid, finalTotal);
+        resetTimeout = setTimeout(resetCalculator, 10000);
     }
 
     const handleOtherIncome = interruptResetAndContinue(async function (type) {
-        if (!inPaymentMode) {
-            const amount = parseFloat(currentInput);
-            if (isNaN(amount) || amount <= 0) return;
-            await sendOtherIncome(amount, type);
-            updateReceiptForOtherIncome(amount, type);
-            resetTimeout = setTimeout(resetCalculator, 10000);
+        let amount;
+        let isFromTransaction = false;
+        if (inPaymentMode) {
+            const finalTotalStr = displayMain.innerText.replace(/[^0-9.-]+/g, "");
+            amount = parseFloat(finalTotalStr);
+            isFromTransaction = true;
         } else {
-            const amountPaid = parseFloat(currentInput);
-            const finalAmountPaid = (isNaN(amountPaid) || amountPaid < transactionTotal) ? transactionTotal : amountPaid;
-            await sendOtherIncome(transactionTotal, type);
-            const change = finalAmountPaid - transactionTotal;
-            displaySub.innerText = `找零: ${change.toLocaleString()} (收到 ${finalAmountPaid.toLocaleString()})`;
-            updateReceiptForOtherIncome(transactionTotal, type, true);
-            resetTimeout = setTimeout(resetCalculator, 10000);
+            amount = parseFloat(currentInput);
         }
+
+        if (isNaN(amount) || amount <= 0) return;
+
+        await sendOtherIncome(amount, type);
+        updateReceiptForOtherIncome(amount, type, isFromTransaction);
+        resetTimeout = setTimeout(resetCalculator, 10000);
     });
 
     function updateReceipt() {
         if (transactionItems.length === 0) {
-            // 狀態一：沒有商品，恢復容器的 Flexbox 居中樣式
             receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
             receiptDetails.innerHTML = '<span class="text-muted">暫無商品</span>';
         } else {
-            // 狀態二：有商品，清空容器的所有樣式 class
             receiptDetails.className = '';
-
             let itemsHtml = transactionItems.map(item =>
                 `<div class="d-flex justify-content-between align-items-center px-3 py-1">
-                <span>${item.categoryName}</span>
-                <span class="${item.price < 0 ? 'text-danger' : ''}">${item.price.toLocaleString()}</span>
-            </div>`
+                    <span>${item.categoryName}</span>
+                    <span class="${item.price < 0 ? 'text-danger' : ''}">${item.price.toLocaleString()}</span>
+                </div>`
             ).join('');
-
-            // 放入我們之前為了對齊而設計的、帶 p-2 的統一結構
             receiptDetails.innerHTML = `
-            <div class="p-2 d-flex flex-column h-100">
-                <div class="flex-grow-1">${itemsHtml}</div>
-            </div>`;
+                <div class="p-2 d-flex flex-column h-100">
+                    <div class="flex-grow-1">${itemsHtml}</div>
+                </div>`;
         }
         receiptDetails.scrollTop = receiptDetails.scrollHeight;
     }
-    function updateReceiptForCheckout() {
-        const amountPaid = parseFloat(currentInput);
+
+    function updateReceiptForCheckout(amountPaid, transactionTotal) {
         const change = amountPaid - transactionTotal;
         const positiveItemsTotal = transactionItems.filter(item => item.price > 0).reduce((sum, item) => sum + item.price, 0);
-        const negativeItems = transactionItems.filter(item => item.price < 0);
-        let discountHtml = '<div style="height: 1.5rem;"></div>';
-        if (negativeItems.length > 0) {
-            discountHtml = negativeItems.map(item =>
-                `<div class="d-flex justify-content-between px-3 py-1">
-                <span>${item.categoryName}</span>
-                <span class="text-danger">${item.price.toLocaleString()}</span>
-            </div>`
-            ).join('');
+        // --- ↓↓↓ 這是全新的、最核心的版面排版邏輯 ↓↓↓ ---
+
+        // 1. 將所有折扣項目（價格為負數的）篩選出來
+        const allDiscounts = transactionItems.filter(item => item.price < 0);
+
+        // 2. 根據您的要求，將折扣分為兩類：「折扣卷」和「百分比折扣」
+        const couponDiscounts = allDiscounts.filter(d => !d.categoryName.includes('鄉親卡') && !d.categoryName.includes('全場'));
+        const percentageDiscounts = allDiscounts.filter(d => d.categoryName.includes('鄉親卡') || d.categoryName.includes('全場'));
+        
+        // 3. 按照您指定的順序（先折扣卷，再百分比折扣）合併
+        const sortedDiscounts = [...couponDiscounts, ...percentageDiscounts];
+
+        // 4. 創建一個代表 5 個「折扣槽位」的空陣列
+        const MAX_DISCOUNT_SLOTS = 3;
+        const discountSlots = new Array(MAX_DISCOUNT_SLOTS).fill(null);
+
+        // 5. 從下往上（從索引 4 開始），將折扣項目填入槽位中
+        let currentSlotIndex = MAX_DISCOUNT_SLOTS - 1; 
+        for (let i = sortedDiscounts.length - 1; i >= 0; i--) {
+            if (currentSlotIndex >= 0) {
+                discountSlots[currentSlotIndex] = sortedDiscounts[i];
+                currentSlotIndex--;
+            }
         }
-        // 確認這裡的父容器和上面修改後的一致
+
+        // 6. 根據槽位的內容，生成對應的 HTML
+        const discountHtml = discountSlots.map(slot => {
+            if (slot) {
+                // 如果槽位有內容，則顯示折扣資訊
+                return `<div class="d-flex justify-content-between px-3 py-1">
+                            <span>${slot.categoryName}</span>
+                            <span class="text-danger">${slot.price.toLocaleString()}</span>
+                        </div>`;
+            } else {
+                // 如果槽位是空的，則顯示一個佔位的空白行，以維持版面整齊
+                return `<div class="py-1" style="height: 2.1rem;">&nbsp;</div>`; 
+            }
+        }).join('');
+        
+        // --- ↑↑↑ 核心邏輯結束 ↑↑↑ ---
+        receiptDetails.className = '';
         receiptDetails.innerHTML = `
-        <div class="p-2 d-flex flex-column h-100">
-            <div class="d-flex justify-content-between px-3 py-1">
-                <span>商品總計</span>
-                <span>${positiveItemsTotal.toLocaleString()}</span>
-            </div>
-            ${discountHtml}
-            <hr class="my-1">
-            <div class="flex-grow-1"></div>
-            <div>
-                <div class="d-flex justify-content-between fw-bold px-3 py-1">
-                    <span>應收金額</span>
-                    <span>${transactionTotal.toLocaleString()}</span>
-                </div>
+            <div class="p-2 d-flex flex-column h-100">
                 <div class="d-flex justify-content-between px-3 py-1">
-                    <span>實收現金</span>
-                    <span>${amountPaid.toLocaleString()}</span>
+                    <span>商品總計</span>
+                    <span>${positiveItemsTotal.toLocaleString()}</span>
                 </div>
-                <div class="d-flex justify-content-between px-3 py-1">
-                    <span>找零</span>
-                    <span>${change.toLocaleString()}</span>
+                ${discountHtml}
+                <hr class="my-1">
+                <div class="flex-grow-1"></div>
+                <div>
+                    <div class="d-flex justify-content-between fw-bold px-3 py-1">
+                        <span>應收金額</span>
+                        <span>${transactionTotal.toLocaleString()}</span>
+                    </div>
+                    <div class="d-flex justify-content-between px-3 py-1">
+                        <span>實收現金</span>
+                        <span>${amountPaid.toLocaleString()}</span>
+                    </div>
+                    <div class="d-flex justify-content-between px-3 py-1">
+                        <span>找零</span>
+                        <span>${change.toLocaleString()}</span>
+                    </div>
                 </div>
-            </div>
-        </div>`;
+            </div>`;
     }
 
     function updateReceiptForOtherIncome(amount, type, isFromTransaction = false) {
@@ -385,8 +452,9 @@ function reformatInitialValues() {
         if (isFromTransaction) {
             title = type === 'donation' ? "交易轉捐款" : "交易轉其他";
         }
+        receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
         receiptDetails.innerHTML = `
-            <div class="text-center p-3 m-auto">
+            <div class="text-center p-3">
                 <h4 class="fw-bold mb-2">${title}</h4>
                 <p class="text-muted small mb-3">您的每一份支持，都是改變的力量</p>
                 <hr class="my-2">
@@ -433,6 +501,7 @@ function reformatInitialValues() {
                     document.getElementById("total-sales").innerText = `$ ${Math.round(result.total_sales).toLocaleString()}`;
                     document.getElementById("total-transactions").innerText = result.total_transactions;
                     document.getElementById("total-items").innerText = result.total_items;
+                    adjustFontSizes();
                 }
             } else { displaySub.innerText = `傳送失敗: ${result.error}`; }
         } catch (error) { console.error("結帳時發生錯誤:", error); displaySub.innerText = "傳送失敗"; }
@@ -458,13 +527,12 @@ function reformatInitialValues() {
                 if (otherTotalEl) {
                     otherTotalEl.innerText = `$ ${Math.round(result.other_total).toLocaleString()}`;
                 }
-
-                // --- ↓↓↓ 新增的核心程式碼 ↓↓↓ ---
                 if (otherIncomeTotalEl) {
                     const totalOtherIncome = (result.donation_total || 0) + (result.other_total || 0);
                     otherIncomeTotalEl.innerText = `$ ${Math.round(totalOtherIncome).toLocaleString()}`;
                 }
-                // --- ↑↑↑ 新增結束 ↑↑↑ ---
+
+                adjustFontSizes();
 
                 displaySub.innerText = type === 'donation' ? "感謝您的愛心捐款！" : "已記錄其他收入";
             } else { displaySub.innerText = `記錄失敗: ${result.error}`; }
@@ -474,19 +542,19 @@ function reformatInitialValues() {
     // --- 事件綁定 ---
     numberButtons.forEach(btn => btn.addEventListener('click', () => handleNumber(btn.dataset.value)));
     operatorButtons.forEach(btn => btn.addEventListener('click', () => handleOperator(btn.dataset.value)));
-    categoryButtons.forEach(btn => btn.addEventListener('click', () => handleCategory(btn.dataset.id, btn.dataset.name)));
-    equalsBtn.addEventListener('click', enterPaymentMode);
+    // 核心修正：所有類別按鈕都綁定到同一個智慧型處理函式
+    categoryButtons.forEach(btn => btn.addEventListener('click', () => handleCategoryClick(btn.dataset.id, btn.dataset.name)));
+    equalsBtn.addEventListener('click', handleEquals);
     checkoutBtn.addEventListener('click', handleCheckout);
     clearBtn.addEventListener('click', interruptResetAndContinue(resetCalculator));
     undoBtn.addEventListener('click', handleUndo);
     backspaceBtn.addEventListener('click', handleBackspace);
     donationBtn.addEventListener('click', () => handleOtherIncome('donation'));
     otherIncomeBtn.addEventListener('click', () => handleOtherIncome('other'));
-
-
+    
     // --- 初始化 ---
     resetCalculator();
-    reformatInitialValues(); // <--- 在這裡新增函式呼叫
-    adjustFontSizes(); // 頁面載入時先執行一次
-    window.addEventListener('resize', adjustFontSizes); // 視窗大小改變時也要執行
+    reformatInitialValues();
+    adjustFontSizes();
+    window.addEventListener('resize', adjustFontSizes);
 });
