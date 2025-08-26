@@ -3,61 +3,316 @@
 
 {% block title %}管理商品類別 - {{ location.name }}{% endblock %}
 
-{% block content %}
-{{ page_header(
-    title='管理商品類別',
-    subtitle='據點: ' ~ location.name,
-    button_url=url_for('admin.add_category', location_id=location.id),
-    button_text='新增類別'
-) }}
+{% block styles %}
+<style>
+    .inline-input, .inline-select, .rule-input, .rule-select {
+        border: 1px solid #dee2e6;
+        padding: 0.25rem 0.5rem;
+        height: 32px;
+        font-size: 0.9rem;
+        width: 100%;
+        border-radius: 0.375rem;
+        background-color: #fff;
+        box-sizing: border-box;
+        transition: all 0.2s ease-in-out;
+    }
+    .inline-input:focus, .inline-select:focus, .rule-input:focus, .rule-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .inline-select { 
+        /* --- ↓↓↓ 這是本次修正的核心：重新加入 appearance: none 來隱藏預設箭頭 ↓↓↓ --- */
+        -moz-appearance: none;
+        -webkit-appearance: none;
+        appearance: none;
+        /* --- ↑↑↑ 修正結束 ↑↑↑ --- */
+        cursor: pointer;
+        padding-right: 2rem;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 0.5rem center;
+        background-size: 16px 12px;
+    }
 
+    .rules-container {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-width: 380px;
+        visibility: hidden;
+    }
+    .rule-part {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        visibility: hidden;
+    }
+    .rule-input { width: 60px; }
+    .rule-part label {
+        margin-bottom: 0;
+        color: #6c757d;
+        font-size: 0.9em;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+    {{ page_header( title='管理商品類別', subtitle='據點: ' ~ location.name ) }}
+</div>
 <a href="{{ url_for('admin.list_locations') }}" class="btn btn-secondary mb-3">返回據點列表</a>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-{% endfor %}
-{% endif %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
 {% endwith %}
 
-<div class="card">
-    <div class="card-body">
-        <table class="table table-hover align-middle">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>類別名稱</th>
-                    <th>顏色預覽</th>
-                    <th class="text-end">操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for category in categories %}
-                <tr>
-                    <td>{{ category.id }}</td>
-                    <td>{{ category.name }}</td>
-                    <td>
-                        <span class="badge" style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px #000;">{{ category.color }}</span>
-                    </td>
-                    <td class="text-end">
-                        <a href="{{ url_for('admin.edit_category', category_id=category.id) }}" class="btn btn-sm btn-warning">編輯</a>
-                        <form action="{{ url_for('admin.delete_category', category_id=category.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除類別 \'{{ category.name }}\' 嗎？');">
-                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                           <button type="submit" class="btn btn-sm btn-danger">刪除</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" class="text-center text-muted">此據點尚未設定任何商品類別。</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<form id="category-form" method="POST" action="{{ url_for('admin.list_categories', location_id=location.id) }}">
+    {{ csrf_token() | safe }}
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th>類別名稱</th>
+                            <th style="width: 15%;">類別類型</th>
+                            <th style="width: 5%;">顏色</th>
+                            <th style="width: 20%;">說明</th>
+                            <th>規則設定</th>
+                            <th style="width: 10%;" class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="category-table-body">
+                        {% for category in categories %}
+                        <tr class="category-row">
+                            <td>{{ category.id }}</td>
+                            <td><input type="text" class="inline-input" name="category-{{ category.id }}-name" value="{{ category.name }}"></td>
+                            <td>
+                                <select name="category-{{ category.id }}-type" class="inline-select category-type-select">
+                                    <option value="product" {% if category.category_type == 'product' %}selected{% endif %}>一般商品</option>
+                                    <option value="discount_fixed" {% if category.category_type == 'discount_fixed' %}selected{% endif %}>固定折扣</option>
+                                    <option value="discount_percent" {% if category.category_type == 'discount_percent' %}selected{% endif %}>百分比折扣</option>
+                                    <option value="buy_n_get_m" {% if category.category_type == 'buy_n_get_m' %}selected{% endif %}>買N送M</option>
+                                    <option value="buy_x_get_x_minus_1" {% if category.category_type == 'buy_x_get_x_minus_1' %}selected{% endif %}>買X送X-1</option>
+                                    <option value="buy_odd_even" {% if category.category_type == 'buy_odd_even' %}selected{% endif %}>成雙優惠</option>
+                                </select>
+                            </td>
+                            <td><input type="color" name="category-{{ category.id }}-color" value="{{ category.color }}" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
+                            <td class="description-cell small text-muted"></td>
+                            <td>
+                                {% set rules = category.get_rules() %}
+                                <div class="rules-container">
+                                    <div class="rule-part target-rule">
+                                        <select class="inline-select rule-select" name="rule-{{ category.id }}-target_category_id">
+                                            {% for choice_id, choice_name in product_categories_choices %}
+                                            <option value="{{ choice_id }}" {% if rules.target_category_id == choice_id %}selected{% endif %}>{{ choice_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="rule-part buy-n-get-m-rule">
+                                        <label>買</label>
+                                        <input type="number" class="rule-input" name="rule-{{ category.id }}-buy_n" value="{{ rules.buy_n or '' }}">
+                                        <label>送</label>
+                                        <input type="number" class="rule-input" name="rule-{{ category.id }}-get_m_free" value="{{ rules.get_m_free or '' }}">
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <form action="{{ url_for('admin.delete_category', category_id=category.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除類別 \'{{ category.name }}\' 嗎？');">
+                                   <input type="hidden" name="csrf_token" value="{{ csrf_token() | safe }}">
+                                   <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        
+                        <tr class="category-row new-row-template">
+                             <td>(新)</td>
+                             <td><input type="text" class="inline-input new-name-input" name="new-name" placeholder="輸入名稱..."></td>
+                             <td>
+                                 <select name="new-type" class="inline-select category-type-select">
+                                     <option value="product">一般商品</option>
+                                     <option value="discount_fixed">固定折扣</option>
+                                     <option value="discount_percent">百分比折扣</option>
+                                     <option value="buy_n_get_m">買N送M</option>
+                                     <option value="buy_x_get_x_minus_1">買X送X-1</option>
+                                     <option value="buy_odd_even">成雙優惠</option>
+                                 </select>
+                             </td>
+                             <td><input type="color" name="new-color" value="#cccccc" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
+                             <td class="description-cell small text-muted"></td>
+                             <td>
+                                  <div class="rules-container">
+                                     <div class="rule-part target-rule">
+                                         <select class="inline-select rule-select" name="new-rule-target_category_id">
+                                             {% for choice_id, choice_name in product_categories_choices %}
+                                             <option value="{{ choice_id }}">{{ choice_name }}</option>
+                                             {% endfor %}
+                                         </select>
+                                     </div>
+                                     <div class="rule-part buy-n-get-m-rule">
+                                         <label>買</label>
+                                         <input type="number" class="rule-input" name="new-rule-buy_n" placeholder="N">
+                                         <label>送</label>
+                                         <input type="number" class="rule-input" name="new-rule-get_m_free" placeholder="M">
+                                     </div>
+                                 </div>
+                             </td>
+                             <td class="text-end"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-</div>
+    <div class="card-footer text-end">
+        <button type="submit" class="btn btn-success btn-lg">儲存所有變更</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// JavaScript 邏輯完全不需要修改，維持原樣
+document.addEventListener('DOMContentLoaded', function() {
+    const tableBody = document.getElementById('category-table-body');
+    const categoryForm = document.getElementById('category-form');
+
+    const typeDescriptions = {
+        'product': 'POS 上的商品按鈕',
+        'discount_fixed': '固定金額折價券',
+        'discount_percent': '對整筆交易總額打折',
+        'buy_n_get_m': '固定數量組合優惠 (買N送M)',
+        'buy_x_get_x_minus_1': '動態優惠 (買X件送X-1件)',
+        'buy_odd_even': '成雙優惠 (買奇數件更划算)'
+    };
+
+    function updateRowUI(row) {
+        const typeSelect = row.querySelector('.category-type-select');
+        const rulesContainer = row.querySelector('.rules-container');
+        const targetRule = row.querySelector('.target-rule');
+        const buyNGetMRule = row.querySelector('.buy-n-get-m-rule');
+        const descriptionCell = row.querySelector('.description-cell');
+        const selectedType = typeSelect.value;
+
+        descriptionCell.textContent = typeDescriptions[selectedType] || '';
+
+        targetRule.style.visibility = 'hidden';
+        buyNGetMRule.style.visibility = 'hidden';
+        
+        if (['buy_n_get_m', 'buy_x_get_x_minus_1', 'buy_odd_even'].includes(selectedType)) {
+            rulesContainer.style.visibility = 'visible';
+            targetRule.style.visibility = 'visible';
+        } else {
+            rulesContainer.style.visibility = 'hidden';
+        }
+        
+        if (selectedType === 'buy_n_get_m') {
+            buyNGetMRule.style.visibility = 'visible';
+        }
+    }
+
+    function setupRow(row) {
+        const typeSelect = row.querySelector('.category-type-select');
+        if (typeSelect) {
+            typeSelect.addEventListener('change', () => updateRowUI(row));
+            updateRowUI(row);
+        }
+    }
+
+    tableBody.querySelectorAll('.category-row').forEach(setupRow);
+
+    function addNewRowIfNeeded() {
+        const lastNewRow = tableBody.querySelector('.new-row-template:last-child');
+        const lastInput = lastNewRow.querySelector('.new-name-input');
+        
+        if (lastInput && lastInput.value.trim() !== '') {
+            const newRow = lastNewRow.cloneNode(true);
+            newRow.querySelector('.new-name-input').value = '';
+            newRow.querySelector('.category-type-select').value = 'product';
+            newRow.querySelector('input[name=new-color]').value = '#cccccc';
+            const ruleInputs = newRow.querySelectorAll('.rule-input, .rules-container select');
+            ruleInputs.forEach(input => {
+                if(input.type === 'number') input.value = '';
+                if(input.tagName === 'SELECT') input.selectedIndex = 0;
+            });
+            tableBody.appendChild(newRow);
+            setupRow(newRow);
+            addInputListener(newRow.querySelector('.new-name-input'));
+        }
+    }
+
+    function addInputListener(inputElement) {
+        inputElement.removeEventListener('input', addNewRowIfNeeded);
+        inputElement.addEventListener('input', addNewRowIfNeeded);
+    }
+    
+    const initialNewInput = tableBody.querySelector('.new-row-template .new-name-input');
+    if(initialNewInput){
+        addInputListener(initialNewInput);
+    }
+
+    categoryForm.addEventListener('submit', function(event) {
+        let validationFailed = false;
+        const rows = tableBody.querySelectorAll('.category-row');
+        let incompleteRowsInfo = [];
+
+        rows.forEach((row, index) => {
+            const typeSelect = row.querySelector('.category-type-select');
+            if (!typeSelect) return;
+
+            const selectedType = typeSelect.value;
+            const categoryNameInput = row.querySelector('input[name*="-name"]');
+            const categoryName = categoryNameInput ? (categoryNameInput.value.trim() || `(新列 ${index + 1})`) : `(新列 ${index + 1})`;
+            
+            if (selectedType === 'buy_n_get_m') {
+                const buyNInput = row.querySelector('input[name*="buy_n"]');
+                const getMInput = row.querySelector('input[name*="get_m_free"]');
+
+                if ((buyNInput && !buyNInput.value) || (getMInput && !getMInput.value)) {
+                    validationFailed = true;
+                    if(buyNInput) buyNInput.style.borderColor = 'red';
+                    if(getMInput) getMInput.style.borderColor = 'red';
+                    incompleteRowsInfo.push(`"${categoryName}" 的「買N送M」規則未填寫完整。`);
+                }
+            }
+        });
+
+        if (validationFailed) {
+            event.preventDefault();
+            
+            const message = '警告：以下規則尚未填寫完整 (已用紅框標示)：\n\n' +
+                          incompleteRowsInfo.join('\n') +
+                          '\n\n點擊「確定」將忽略未完成的規則並繼續儲存。\n' +
+                          '點擊「取消」將留在頁面讓您繼續編輯。';
+
+            const proceed = confirm(message);
+            
+            if (proceed) {
+                categoryForm.submit();
+            }
+
+            setTimeout(() => {
+                rows.forEach(row => {
+                    const inputs = row.querySelectorAll('input[style*="border-color: red"]');
+                    inputs.forEach(input => input.style.borderColor = 'transparent');
+                });
+            }, 5000);
+        }
+    });
+});
+</script>
 {% endblock %}

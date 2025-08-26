@@ -1,10 +1,7 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets
-# --- 新增匯入 ---
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField
 from wtforms.fields import ColorField
-from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError
-# *** 修正點：在這裡匯入 Role 模型 ***
-# --- 新增匯入 ---
+from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
 from .models import User, Role, Category
 
 class LoginForm(FlaskForm):
@@ -21,12 +18,41 @@ class LocationForm(FlaskForm):
     ])
     submit = SubmitField('儲存')
 
-# --- 新增：商品類別表單 ---
 class CategoryForm(FlaskForm):
     """新增/編輯商品類別的表單"""
     name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
     color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
+    
+    # --- ↓↓↓ 新增/修改的欄位 ↓↓↓ ---
+    category_type = SelectField(
+        '類別類型',
+        choices=[
+            ('product', '一般商品 (加法)'),
+            ('discount_fixed', '固定金額折扣 (減法)'),
+            ('discount_percent', '百分比折扣 (乘法)'),
+            ('buy_n_get_m', '買 N 送 M (固定)'),
+            ('buy_x_get_x_minus_1', '買 X 送 X-1 (動態)'),
+            ('buy_odd_even', '成雙優惠 (奇數件)')
+        ],
+        validators=[DataRequired()]
+    )
+    # --- 規則設定欄位 ---
+    # `Optional()` 意思是這些欄位不是必填的，因為只有特定折扣類型才需要
+    rule_target_category_id = SelectField('目標商品類別', coerce=int, validators=[Optional()])
+    rule_buy_n = IntegerField('購買數量 (N)', validators=[Optional()])
+    rule_get_m = IntegerField('免費/優惠數量 (M)', validators=[Optional()])
+    # --- ↑↑↑ 新增/修改結束 ↑↑↑ ---
+
     submit = SubmitField('儲存')
+
+    # 動態載入目標商品選項
+    def __init__(self, location_id, *args, **kwargs):
+        super(CategoryForm, self).__init__(*args, **kwargs)
+        self.rule_target_category_id.choices = [
+            (c.id, c.name) for c in Category.query.filter_by(
+                location_id=location_id, category_type='product'
+            ).order_by('name').all()
+        ]
 
 class StartDayForm(FlaskForm):
     opening_cash = FloatField('開店準備金 (元)', validators=[
@@ -70,7 +96,6 @@ class UserForm(FlaskForm):
     def __init__(self, user=None, *args, **kwargs):
         super(UserForm, self).__init__(*args, **kwargs)
         self.original_user = user
-        # 現在 Role 已經被匯入，所以這裡可以正常運作
         self.roles.choices = [(r.id, r.name) for r in Role.query.order_by('name').all()]
 
     def validate_username(self, field):
@@ -78,7 +103,6 @@ class UserForm(FlaskForm):
             if User.query.filter_by(username=field.data).first():
                  raise ValidationError('此使用者名稱已被使用。')
 
-# --- 新增：Google 雲端設定表單 ---
 class GoogleSettingsForm(FlaskForm):
     """用於管理 Google Drive 和 Sheets 設定的表單"""
     drive_folder_name = StringField(

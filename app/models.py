@@ -2,6 +2,7 @@ from . import db
 from datetime import datetime, timezone
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+import json
 
 # --- 中介關聯表 ---
 roles_users = db.Table('roles_users',
@@ -79,8 +80,23 @@ class Category(db.Model):
     name = db.Column(db.String(50), nullable=False)
     color = db.Column(db.String(7), nullable=False, default='#cccccc')
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
+    
+    category_type = db.Column(db.String(30), nullable=False, default='product', server_default='product')
+    discount_rules = db.Column(db.Text, nullable=True)
+
     location = db.relationship('Location', back_populates='categories')
     items = db.relationship('TransactionItem', back_populates='category', lazy=True)
+
+    def get_rules(self):
+        if self.discount_rules:
+            try:
+                return json.loads(self.discount_rules)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_rules(self, rules_dict):
+        self.discount_rules = json.dumps(rules_dict)
 
     def __repr__(self):
         return f'<Category {self.name}>'
@@ -89,7 +105,11 @@ class BusinessDay(db.Model):
     """營業日模型"""
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
+    
+    # --- ↓↓↓ 核心修正處 (將 location__id 改回 location_id) ↓↓↓ ---
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
+    # --- ↑↑↑ 修正結束 ↑↑↑ ---
+
     location = db.relationship('Location', back_populates='business_days')
     location_notes = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='NOT_STARTED')
@@ -107,7 +127,6 @@ class BusinessDay(db.Model):
     transactions = db.relationship('Transaction', backref='business_day', lazy=True, cascade="all, delete-orphan")
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    # --- ** 最終修正點：將 other_income 拆分 ** ---
     donation_total = db.Column(db.Float, default=0.0)
     other_total = db.Column(db.Float, default=0.0)
 
