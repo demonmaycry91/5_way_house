@@ -33,11 +33,21 @@ document.addEventListener("DOMContentLoaded", function () {
         activeDiscountMode = null;
         finalTotalForPayment = 0;
         isTransactionComplete = false;
-        updateReceipt();
-        updateDisplay();
-        document.querySelectorAll(".calc-btn, .category-btn, #donation-btn, #other-income-btn").forEach(btn => btn.disabled = false);
+        
+        categoryButtons.forEach(btn => {
+            if (btn.dataset.type === 'discount_percent') {
+                btn.disabled = true;
+            } else {
+                btn.disabled = false;
+            }
+        });
+        document.querySelectorAll(".calc-btn, #donation-btn, #other-income-btn").forEach(btn => btn.disabled = false);
+
         equalsBtn.style.display = 'block';
         checkoutBtn.style.display = 'none';
+
+        updateReceipt();
+        updateDisplay();
     }
 
     function checkAndResetAfterTransaction() {
@@ -52,27 +62,42 @@ document.addEventListener("DOMContentLoaded", function () {
         const mainValue = parseFloat(currentInput) || 0;
         displayMain.innerText = mainValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
     
-        const itemsText = transactionItems.map(item => item.displayText).join(' + ');
-        const currentExpressionText = inPaymentMode ? '' : [...expression, (currentInput !== '0' || expression.length > 0) ? currentInput : ''].join(' ');
-        const fullExpression = [itemsText, currentExpressionText].filter(Boolean).join(' + ').replace(/\+ -/g, '- ');
-        displayExpression.innerText = fullExpression;
+        // --- ↓↓↓ 這是本次修正的核心 (顯示邏輯) ↓↓↓ ---
+        if (inPaymentMode || activeDiscountMode) {
+            // 進入結帳或折扣模式時，上方表達式應顯示小計
+            const total = calculateCurrentTotal();
+            displayExpression.innerText = `小計: ${total.toLocaleString('en-US')}`;
+        } else {
+            // 正常登錄商品時，顯示完整算式
+            const itemsText = transactionItems.map(item => item.displayText).join(' + ');
+            const currentExpressionText = [...expression, (currentInput !== '0' || expression.length > 0) ? currentInput : ''].join(' ');
+            const fullExpression = [itemsText, currentExpressionText].filter(Boolean).join(' + ').replace(/\+ -/g, '- ');
+            displayExpression.innerText = fullExpression;
+        }
+        // --- ↑↑↑ 修正結束 ↑↑↑ ---
 
         if (subText) {
             displaySub.innerText = subText;
-        } else if (inPaymentMode) {
-            displaySub.innerText = `應收: ${finalTotalForPayment.toLocaleString('en-US')} / 實收: ${mainValue.toLocaleString('en-US')}`;
         } else if (activeDiscountMode) {
             displaySub.innerText = `請輸入折扣數字 (例如 9折 輸入 9)`;
+        } else if (inPaymentMode) {
+            displaySub.innerText = `應收: ${finalTotalForPayment.toLocaleString('en-US')} / 實收: ${mainValue.toLocaleString('en-US')}`;
         } else {
             const currentTotal = calculateCurrentTotal();
             displaySub.innerText = `小計: ${currentTotal.toLocaleString('en-US')}`;
         }
     }
     
+    // --- ↓↓↓ 這是本次修正的核心 (計算邏輯) ↓↓↓ ---
     function calculateCurrentTotal() {
         const itemsTotal = transactionItems.reduce((sum, item) => sum + item.price, 0);
-        if (inPaymentMode) { return itemsTotal; }
+
+        // 如果正在等待輸入折扣，或已進入最終付款，則小計就是購物籃總額
+        if (activeDiscountMode || inPaymentMode) {
+            return itemsTotal;
+        }
         
+        // 只有在第一階段（登錄商品時）才加上當前輸入的數字
         let exprString = [...expression, currentInput].join(' ');
         if (['+', '-', '*', '/'].includes(exprString.trim().slice(-1))) {
             exprString = exprString.trim().slice(0, -1);
@@ -80,6 +105,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const currentExpressionValue = safeCalculate(exprString);
         return itemsTotal + currentExpressionValue;
     }
+    // --- ↑↑↑ 修正結束 ↑↑↑ ---
     
     function safeCalculate(exprStr) {
         try {
@@ -167,6 +193,8 @@ document.addEventListener("DOMContentLoaded", function () {
             currentInput = '0';
             updateReceipt();
             enterPaymentMode();
+        } else {
+             enterFinalPaymentStage();
         }
     }
     
@@ -255,8 +283,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function activateDiscountPercent(categoryId, categoryName, rules) {
+        if (!inPaymentMode) {
+            enterPaymentMode();
+        }
         activeDiscountMode = { id: categoryId, name: categoryName, rules: rules };
         isReadyForNewInput = true;
+        equalsBtn.style.display = 'block';
+        checkoutBtn.style.display = 'none';
         updateDisplay();
     }
 
@@ -264,20 +297,22 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!activeDiscountMode) return;
         
         const { id, name } = activeDiscountMode;
-        const subtotal = inPaymentMode ? finalTotalForPayment : calculateCurrentTotal();
+        const subtotal = calculateCurrentTotal();
         let discountValue = parseFloat(currentInput);
         if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
             return updateDisplay("錯誤：請輸入有效的折扣數字 (0-100)");
         }
         const multiplier = (discountValue < 10) ? discountValue / 10 : discountValue / 100;
         const discountAmount = -Math.round(subtotal * (1 - multiplier));
+        
         transactionItems = transactionItems.filter(item => item.category_id !== id);
         
         if(discountAmount < 0) {
             transactionItems.push({
                 price: discountAmount, unitPrice: discountAmount, quantity: 1,
                 category_id: id, category_type: 'discount_percent',
-                categoryName: name, displayText: `${discountValue}折`
+                categoryName: `${name} ${discountValue}折`,
+                displayText: `-${Math.abs(discountAmount)}`
             });
         }
         activeDiscountMode = null;
@@ -424,25 +459,29 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function enterPaymentMode() {
         finalTotalForPayment = calculateCurrentTotal();
-        if (finalTotalForPayment <= 0 && transactionItems.length > 0) {
-            handleCheckout(0);
-            return;
-        }
         inPaymentMode = true;
         isReadyForNewInput = true;
         expression = [];
         currentInput = '0';
-        equalsBtn.style.display = 'none';
-        checkoutBtn.style.display = 'block';
         
         categoryButtons.forEach(btn => {
-            if (btn.dataset.type !== 'discount_percent') {
+            if (btn.dataset.type === 'discount_percent') {
+                btn.disabled = false;
+            } else {
                 btn.disabled = true;
             }
         });
         updateDisplay();
     }
 
+    function enterFinalPaymentStage() {
+        finalTotalForPayment = calculateCurrentTotal();
+        equalsBtn.style.display = 'none';
+        checkoutBtn.style.display = 'block';
+        categoryButtons.forEach(btn => btn.disabled = true);
+        updateDisplay();
+    }
+    
     async function handleCheckout(paidAmount = null) {
         const amountPaid = paidAmount ?? parseFloat(currentInput);
         if (isNaN(amountPaid) || amountPaid < finalTotalForPayment) {
@@ -456,10 +495,8 @@ document.addEventListener("DOMContentLoaded", function () {
         
         isTransactionComplete = true;
     }
-
-    // --- ↓↓↓ 這是修正後的核心函式 ↓↓↓ ---
+    
     function updateReceipt(promptText = null) {
-        // 移除所有外層 class，讓父容器 pos.html 的 p-2 生效
         receiptDetails.className = '';
         if (transactionItems.length === 0 && !promptText) {
             receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
@@ -467,7 +504,6 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
         
-        // 標頭
         let headerHtml = `
             <div class="receipt-line receipt-header">
                 <div class="flex-grow-1">商品</div>
@@ -476,7 +512,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 <div style="width: 80px;" class="text-end">金額</div>
             </div>`;
 
-        // 商品列表
         let itemsHtml = transactionItems.map(item => {
             const isProduct = item.category_type === 'product' && item.quantity > 0;
             return `
@@ -492,13 +527,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>`;
         }).join('');
 
-        // 提示
         let promptHtml = '';
         if (promptText) {
             promptHtml = `<div class="receipt-prompt">${promptText}</div>`;
         }
         
-        // 組合
         receiptDetails.innerHTML = `<div>${headerHtml}<div class="item-list">${itemsHtml}</div></div>${promptHtml}`;
         receiptDetails.scrollTop = receiptDetails.scrollHeight;
     }
@@ -541,7 +574,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
             </div>`;
     }
-    // --- ↑↑↑ 核心修正結束 ↑↑↑ ---
     
     // =================================================================
     // SECTION 5: 伺服器通訊
