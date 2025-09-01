@@ -1,11 +1,9 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets
-# --- 新增匯入 ---
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField
 from wtforms.fields import ColorField
-from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError
-# *** 修正點：在這裡匯入 Role 模型 ***
-# --- 新增匯入 ---
-from .models import User, Role, Category
+from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
+from .models import User, Role, Category, Location
+from datetime import date
 
 class LoginForm(FlaskForm):
     username = StringField('帳號', validators=[DataRequired(message="請輸入帳號。")])
@@ -25,7 +23,32 @@ class CategoryForm(FlaskForm):
     """新增/編輯商品類別的表單"""
     name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
     color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
+    
+    category_type = SelectField(
+        '類別類型',
+        choices=[
+            ('product', '一般商品 (加法)'),
+            ('discount_fixed', '固定金額折扣 (減法)'),
+            ('discount_percent', '百分比折扣 (乘法)'),
+            ('buy_n_get_m', '買 N 送 M (固定)'),
+            ('buy_x_get_x_minus_1', '買 X 送 X-1 (動態)'),
+            ('buy_odd_even', '成雙優惠 (奇數件)')
+        ],
+        validators=[DataRequired()]
+    )
+    rule_target_category_id = SelectField('目標商品類別', coerce=int, validators=[Optional()])
+    rule_buy_n = IntegerField('購買數量 (N)', validators=[Optional()])
+    rule_get_m = IntegerField('免費/優惠數量 (M)', validators=[Optional()])
+
     submit = SubmitField('儲存')
+
+    def __init__(self, location_id, *args, **kwargs):
+        super(CategoryForm, self).__init__(*args, **kwargs)
+        self.rule_target_category_id.choices = [
+            (c.id, c.name) for c in Category.query.filter_by(
+                location_id=location_id, category_type='product'
+            ).order_by('name').all()
+        ]
 
 class StartDayForm(FlaskForm):
     opening_cash = FloatField('開店準備金 (元)', validators=[
@@ -45,12 +68,12 @@ class ReportQueryForm(FlaskForm):
         ('daily_summary', '各據點每日報表'),
         ('daily_cash_summary', '當日手帳與現金'),
         ('transaction_log', '各據點交易細節'),
-        ('combined_summary', '合併總結報表')
+        ('combined_summary_final', '合併報表總結'), # <-- 修改點：新增選項
     ], validators=[DataRequired()])
     
     location_id = SelectField('據點', coerce=str, validators=[Optional()])
-    start_date = DateField('開始日期', validators=[DataRequired()], default=date.today)
-    end_date = DateField('結束日期', validators=[DataRequired()], default=date.today)
+    start_date = DateField('查詢日期', validators=[DataRequired()], default=date.today)
+    end_date = DateField('結束日期', validators=[Optional()], default=date.today) # 設為 Optional
     submit = SubmitField('查詢')
 
     def __init__(self, *args, **kwargs):
@@ -58,6 +81,7 @@ class ReportQueryForm(FlaskForm):
         self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by('name').all()]
 
 class RoleForm(FlaskForm):
+# ... (此 class 之後的內容維持不變) ...
     """新增/編輯角色的表單"""
     name = StringField('角色名稱', validators=[DataRequired(), Length(1, 64)])
     permissions = SelectMultipleField(
@@ -106,4 +130,3 @@ class GoogleSettingsForm(FlaskForm):
         description="支援的變數: {location_name}, {location_slug}, {year}, {month}。例如: {location_name}_{year}_業績"
     )
     submit = SubmitField('儲存設定')
-
