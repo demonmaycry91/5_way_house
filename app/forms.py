@@ -1,11 +1,9 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets
-# --- 新增匯入 ---
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField
 from wtforms.fields import ColorField
-from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError
-# *** 修正點：在這裡匯入 Role 模型 ***
-# --- 新增匯入 ---
-from .models import User, Role, Category
+from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
+from .models import User, Role, Category, Location
+from datetime import date
 
 class LoginForm(FlaskForm):
     username = StringField('帳號', validators=[DataRequired(message="請輸入帳號。")])
@@ -21,12 +19,36 @@ class LocationForm(FlaskForm):
     ])
     submit = SubmitField('儲存')
 
-# --- 新增：商品類別表單 ---
 class CategoryForm(FlaskForm):
     """新增/編輯商品類別的表單"""
     name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
     color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
+    
+    category_type = SelectField(
+        '類別類型',
+        choices=[
+            ('product', '一般商品 (加法)'),
+            ('discount_fixed', '固定金額折扣 (減法)'),
+            ('discount_percent', '百分比折扣 (乘法)'),
+            ('buy_n_get_m', '買 N 送 M (固定)'),
+            ('buy_x_get_x_minus_1', '買 X 送 X-1 (動態)'),
+            ('buy_odd_even', '成雙優惠 (奇數件)')
+        ],
+        validators=[DataRequired()]
+    )
+    rule_target_category_id = SelectField('目標商品類別', coerce=int, validators=[Optional()])
+    rule_buy_n = IntegerField('購買數量 (N)', validators=[Optional()])
+    rule_get_m = IntegerField('免費/優惠數量 (M)', validators=[Optional()])
+
     submit = SubmitField('儲存')
+
+    def __init__(self, location_id, *args, **kwargs):
+        super(CategoryForm, self).__init__(*args, **kwargs)
+        self.rule_target_category_id.choices = [
+            (c.id, c.name) for c in Category.query.filter_by(
+                location_id=location_id, category_type='product'
+            ).order_by('name').all()
+        ]
 
 class StartDayForm(FlaskForm):
     opening_cash = FloatField('開店準備金 (元)', validators=[
@@ -40,6 +62,23 @@ class CloseDayForm(FlaskForm):
 
 class ConfirmReportForm(FlaskForm):
     submit = SubmitField('確認存檔並結束本日營業')
+
+class ReportQueryForm(FlaskForm):
+    report_type = SelectField('報表類型', choices=[
+        ('daily_summary', '各據點每日報表'),
+        ('daily_cash_summary', '當日手帳與現金'),
+        ('transaction_log', '各據點交易細節'),
+        ('combined_summary', '合併總結報表')
+    ], validators=[DataRequired()])
+    
+    location_id = SelectField('據點', coerce=str, validators=[Optional()])
+    start_date = DateField('開始日期', validators=[DataRequired()], default=date.today)
+    end_date = DateField('結束日期', validators=[DataRequired()], default=date.today)
+    submit = SubmitField('查詢')
+
+    def __init__(self, *args, **kwargs):
+        super(ReportQueryForm, self).__init__(*args, **kwargs)
+        self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by('name').all()]
 
 class RoleForm(FlaskForm):
     """新增/編輯角色的表單"""
@@ -70,7 +109,6 @@ class UserForm(FlaskForm):
     def __init__(self, user=None, *args, **kwargs):
         super(UserForm, self).__init__(*args, **kwargs)
         self.original_user = user
-        # 現在 Role 已經被匯入，所以這裡可以正常運作
         self.roles.choices = [(r.id, r.name) for r in Role.query.order_by('name').all()]
 
     def validate_username(self, field):
@@ -78,7 +116,6 @@ class UserForm(FlaskForm):
             if User.query.filter_by(username=field.data).first():
                  raise ValidationError('此使用者名稱已被使用。')
 
-# --- 新增：Google 雲端設定表單 ---
 class GoogleSettingsForm(FlaskForm):
     """用於管理 Google Drive 和 Sheets 設定的表單"""
     drive_folder_name = StringField(
@@ -92,3 +129,4 @@ class GoogleSettingsForm(FlaskForm):
         description="支援的變數: {location_name}, {location_slug}, {year}, {month}。例如: {location_name}_{year}_業績"
     )
     submit = SubmitField('儲存設定')
+

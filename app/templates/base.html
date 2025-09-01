@@ -14,6 +14,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}我的 Flask 應用{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    {% block styles %}{% endblock %}
 </head>
 
 <body>
@@ -30,10 +31,11 @@
                         <a class="nav-link" href="{{ url_for('cashier.dashboard') }}">儀表板</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#">報表查詢</a> </li>
+                        {# --- ▼▼▼ 修改這裡 ▼▼▼ --- #}
+                        <a class="nav-link" href="{{ url_for('report.query') }}">報表查詢</a> 
+                    </li>
                 </ul>
                 <ul class="navbar-nav">
-                    {# --- 修正點：Admin 專用管理選單 --- #}
                     {% if current_user.is_authenticated and current_user.has_role('Admin') %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownAdmin" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -48,7 +50,6 @@
                     </li>
                     {% endif %}
                     
-                    {# --- 修正點：登入後才顯示登出按鈕 --- #}
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('cashier.logout') }}">登出 ({{ current_user.username }})</a>
@@ -65,7 +66,6 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
-     {# --- ↓↓↓ 在這裡新增 ↓↓↓ --- #}
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -79,7 +79,6 @@
             });
         }
     </script>
-    {# --- ↑↑↑ 新增結束 ↑↑↑ --- #}
     
     {% block scripts %}{% endblock %}
 </body>

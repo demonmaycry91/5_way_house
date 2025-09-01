@@ -9,6 +9,7 @@ from flask import (
     Blueprint,
     jsonify,
     current_app,
+    Response  # <-- 新增匯入 Response
 )
 from flask_login import login_user, logout_user, login_required, current_user
 from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem
@@ -19,6 +20,7 @@ from ..services import google_service
 from sqlalchemy.orm import contains_eager
 from sqlalchemy import and_
 from ..decorators import admin_required
+from weasyprint import HTML  # <-- 新增匯入 HTML
 
 bp = Blueprint("cashier", __name__, url_prefix="/cashier")
 

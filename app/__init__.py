@@ -56,12 +56,13 @@ def create_app():
     migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
-    from .routes import main_routes, ocr_routes, cashier_routes, google_routes, admin_routes
+    from .routes import main_routes, ocr_routes, cashier_routes, google_routes, admin_routes, report_routes
     app.register_blueprint(main_routes.bp)
     app.register_blueprint(ocr_routes.bp)
     app.register_blueprint(cashier_routes.bp)
     app.register_blueprint(google_routes.bp)
     app.register_blueprint(admin_routes.bp)
+    app.register_blueprint(report_routes.bp)
 
     from . import models
     from . import auth_commands
