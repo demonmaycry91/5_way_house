@@ -3,6 +3,37 @@
 
 {% block title %}銷售點終端 (POS) - {{ location.name }}{% endblock %}
 
+{% block styles %}
+<style>
+    /* 統一套用在 #receipt-details 容器上，確保字體大小一致 */
+    #receipt-details {
+        font-size: 0.95rem;
+    }
+    /* 交易明細中每一行的通用樣式 */
+    .receipt-line {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.4rem 0.75rem; /* 統一內邊距 */
+    }
+    /* 交易明細的標頭樣式 */
+    .receipt-header {
+        font-weight: bold; /* 1. 標頭加粗 */
+        color: #6c757d;   /* 文字調暗 */
+        font-size: 0.9rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+    /* 提示訊息的樣式 */
+    .receipt-prompt {
+        padding: 0.5rem 0;
+        text-align: center;
+        font-weight: bold;
+        color: #0d6efd;
+        border-top: 1px solid #dee2e6;
+        margin: 0 0.75rem; /* 讓分隔線不會碰到左右邊框 */
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 {{ page_header(
 title='POS 系統',
@@ -39,10 +70,13 @@ button_text='返回儀表板'
                             <div class="col-4 d-grid">
                                 <button class="btn btn-lg category-btn"
                                     style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"
-                                    data-id="{{ category.id }}" data-name="{{ category.name }}">
+                                    data-id="{{ category.id }}"
+                                    data-name="{{ category.name }}"
+                                    data-type="{{ category.category_type }}"
+                                    data-rules='{{ category.discount_rules or "{}" }}'>
                                     {{ category.name }}
                                 </button>
-                            </div>
+                                </div>
                             {% endfor %}
                         </div>
                     </div>
@@ -51,7 +85,8 @@ button_text='返回儀表板'
                         <hr class="my-2">
                     </div>
 
-                    {# --- 計算機按鈕 --- #}
+                    {# --- 計算機按鈕 (維持不變) --- #}
+                    {# ... (計算機按鈕的 HTML) ... #}
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
                             data-action="clear">C</button></div>
                     <div class="col-3 d-grid"><button class="btn btn-lg btn-secondary calc-btn"
@@ -111,20 +146,18 @@ button_text='返回儀表板'
         </div>
     </div>
 
-    {# --- 右側：明細與業績區 --- #}
+    {# --- 右側：明細與業績區 (維持不變) --- #}
+    {# ... (右側 HTML) ... #}
     <div class="col-md-5 d-flex flex-column">
         <div class="card mb-3 flex-fill d-flex flex-column">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>交易明細</span>
             </div>
-            {# --- ** 最終修正點：簡化容器結構 ** --- #}
-            {# --- <div id="receipt-details" style="min-height: 380px; max-height: 380px; overflow-y: scroll;"> --- #}
-            <div id="receipt-details" class="flex-grow-1" style="overflow-y: auto; scrollbar-gutter: stable;">
+            <div id="receipt-details" class="flex-grow-1 p-2" style="overflow-y: auto; scrollbar-gutter: stable;">
             <div class="text-center text-muted m-auto">暫無商品</div>
         </div>
         </div>
 
-        {# --- [最終修正版] 本日即-時業績卡片 --- #}
 <div class="card text-center mb-3">
     <div class="card-header">本日即時業績</div>
     <div class="card-body">
@@ -134,15 +167,13 @@ button_text='返回儀表板'
                 line-height: 1.2;
                 white-space: nowrap;
                 overflow: hidden;
-                /* 預設一個比較大的初始字體，JS 會去動態調整它 */
                 font-size: 1.75rem;
-                margin-bottom: 0; /* 移除 p 標籤預設的下邊距 */
+                margin-bottom: 0;
             }
         </style>
 
-        {# 第一排：主要業績 #}
-        <div class="row align-items-stretch"> {# <-- 核心修正點 1 #}
-            <div class="col-4 d-flex flex-column justify-content-center"> {# <-- 核心修正點 2 #}
+        <div class="row align-items-stretch">
+            <div class="col-4 d-flex flex-column justify-content-center">
                 <h5 class="mb-1">銷售總額</h5>
                 <p class="responsive-h3" id="total-sales">$ {{ business_day.total_sales|int }}</p>
             </div>
@@ -156,8 +187,7 @@ button_text='返回儀表板'
             </div>
         </div>
         <hr>
-        {# 第二排：其他收入 #}
-        <div class="row align-items-stretch"> {# <-- 核心修正點 1 #}
+        <div class="row align-items-stretch">
             <div class="col-4 d-flex flex-column justify-content-center">
                 <h5 class="mb-1">其他收入</h5>
                 <p class="responsive-h3" id="other-income-total">$ {{ (business_day.donation_total +

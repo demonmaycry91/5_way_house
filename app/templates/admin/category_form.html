@@ -21,12 +21,35 @@
                     <div class="mb-3">
                         {{ form.name.label(class="form-label") }}
                         {{ form.name(class="form-control") }}
-                        <div class="form-text">例如：「生活用品」、「文具」、「捐款」或「折扣」。</div>
+                        <div class="form-text">在 POS 介面上顯示的按鈕名稱。</div>
                     </div>
                     <div class="mb-3">
                         {{ form.color.label(class="form-label") }}
                         {{ form.color(class="form-control form-control-color") }}
                         <div class="form-text">選擇一個在 POS 介面上代表此類別的顏色。</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.category_type.label(class="form-label") }}
+                        {{ form.category_type(class="form-select", id="categoryTypeSelect") }}
+                        <div class="form-text">決定這個按鈕在 POS 介面上的行為。</div>
+                    </div>
+                    
+                    <div id="rules-container" style="display: none;" class="border rounded p-3 mb-3">
+                        <h5 class="mb-3">折扣規則設定</h5>
+                        <div class="mb-3" id="target-category-rule">
+                             {{ form.rule_target_category_id.label(class="form-label") }}
+                             {{ form.rule_target_category_id(class="form-select") }}
+                             <div class="form-text">此折扣適用於哪個商品類別。</div>
+                        </div>
+                        <div class="mb-3" id="buy-n-rule">
+                            {{ form.rule_buy_n.label(class="form-label") }}
+                            {{ form.rule_buy_n(class="form-control") }}
+                        </div>
+                        <div id="get-m-rule">
+                            {{ form.rule_get_m.label(class="form-label") }}
+                            {{ form.rule_get_m(class="form-control") }}
+                        </div>
                     </div>
                     <div class="d-grid">
                         {{ form.submit(class="btn btn-primary") }}
@@ -36,4 +59,41 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categoryTypeSelect = document.getElementById('categoryTypeSelect');
+    const rulesContainer = document.getElementById('rules-container');
+    const targetCategoryRule = document.getElementById('target-category-rule');
+    const buyNRule = document.getElementById('buy-n-rule');
+    const getMRule = document.getElementById('get-m-rule');
+
+    function toggleRules() {
+        const selectedType = categoryTypeSelect.value;
+
+        // 預設全部隱藏
+        rulesContainer.style.display = 'none';
+        targetCategoryRule.style.display = 'none';
+        buyNRule.style.display = 'none';
+        getMRule.style.display = 'none';
+
+        if (['buy_n_get_m', 'buy_x_get_x_minus_1', 'buy_odd_even'].includes(selectedType)) {
+            rulesContainer.style.display = 'block';
+            targetCategoryRule.style.display = 'block';
+        }
+        
+        if (selectedType === 'buy_n_get_m') {
+            buyNRule.style.display = 'block';
+            getMRule.style.display = 'block';
+        }
+    }
+
+    categoryTypeSelect.addEventListener('change', toggleRules);
+    
+    // 頁面載入時先執行一次，以處理編輯頁面的預設值
+    toggleRules();
+});
+</script>
 {% endblock %}
