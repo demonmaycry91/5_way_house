@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}合併報表結算{% endblock %}
+
+{% block styles %}
+<!-- Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    .table td, .table th {
+        vertical-align: middle;
+    }
+    /* --- ↓↓↓ 移除「$」和金額之間的垂直線 ↓↓↓ --- */
+    .currency-symbol {
+        text-align: right !important;
+        padding-left: 0.2rem !important;
+        padding-right: 0.1rem !important;
+        border-right-width: 0 !important; /* 移除右邊框 */
+    }
+    .amount {
+        text-align: right !important;
+        font-family: monospace !important;
+        border-left-width: 0 !important; /* 移除左邊框 */
+    }
+    /* --- ↑↑↑ 修改結束 ↑↑↑ --- */
+    .form-control.amount {
+        width: 100%;
+        box-sizing: border-box; 
+        min-width: auto;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+    }
+    .remark-input {
+        min-width: 150px;
+    }
+    .table-responsive {
+        overflow-x: auto;
+    }
+    .flatpickr-day .day-status-dot {
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+    .dot-settled { background-color: #dc3545; }
+    .dot-pending { background-color: #198754; }
+    .dot-in-progress { background-color: #ffc107; }
+    .dot-no-data { background-color: #6c757d; }
+    .flatpickr-current-month {
+        font-size: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{{ page_header(title='合併報表結算', subtitle='請檢視 ' + report_date.strftime('%Y-%m-%d') + ' 的總結資料') }}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('report.settlement') }}" class="row g-3 align-items-center justify-content-center">
+            <div class="col-auto">
+                <label for="date-picker" class="col-form-label">選擇結算日期:</label>
+            </div>
+            <div class="col-auto">
+                <input type="date" id="date-picker" name="date" value="{{ report_date.isoformat() }}" class="form-control">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">查詢</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+{% if is_settled %}
+<div class="alert alert-info">
+    <h4 class="alert-heading">唯讀模式</h4>
+    <p>本日的總結算已歸檔，無法再進行任何修改，僅供查閱。</p>
+</div>
+{% elif not all_closed %}
+<div class="alert alert-warning">
+    <h4 class="alert-heading">尚有據點未完成結帳！</h4>
+    <p>必須等待以下據點完成本日結帳作業後，才能進行總結算：</p>
+    <ul>
+        {% for location_name in unclosed_locations %}
+        <li>{{ location_name }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('report.save_settlement') }}" class="mt-4">
+    {{ form.hidden_tag() }}
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover" style="table-layout: fixed;">
+            <colgroup>
+                <col style="width: 3%;">
+                <col style="width: 12%;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col>
+            </colgroup>
+            <thead class="table-light">
+                <tr>
+                    <th>序</th>
+                    <th>項目</th>
+                    <th colspan="2" class="text-center">總計</th>
+                    {% for location_name in active_locations_ordered %}
+                        <th colspan="2" class="text-center">{{ location_name }}</th>
+                    {% endfor %}
+                    {% for i in range(5 - (active_locations_ordered|length)) %}
+                        <th colspan="2" class="text-center table-active"></th>
+                    {% endfor %}
+                    <th>備註</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set items = [
+                    ('A', '應有現金', 'A', 'expected_cash'),
+                    ('B', '手帳營收', 'B', 'total_sales'),
+                    ('C', '開店現金', 'C', 'opening_cash'),
+                    ('D', '實有現金', 'D', 'closing_cash'),
+                    ('E', '溢短收', 'E', 'cash_diff'),
+                    ('F', '其他現金', 'F', 'other_cash'),
+                    ('G', '當日總現金', 'G', 'total_cash'),
+                    ('H', '存款', 'H', 'deposit'),
+                    ('I', '明日開店現金', 'I', 'next_day_cash')
+                ] %}
+
+                {% for num, name, key, attr in items %}
+                <tr>
+                    <td class="text-center fw-bold">{{ num }}</td>
+                    <td>{{ name }}</td>
+                    
+                    <!-- Grand Total Data -->
+                    {% if name == '存款' %}
+                        <td class="currency-symbol">$</td>
+                        <td class="amount fw-bold" id="deposit_display">{{ "{:,.0f}".format(grand_total.H) }}</td>
+                    {% elif name == '明日開店現金' %}
+                        <td class="currency-symbol">$</td>
+                        <td class="amount p-1">
+                            {{ form.total_next_day_opening_cash(class="form-control form-control-sm amount", id="next_day_cash_input", readonly=is_settled, type="text", inputmode="numeric") }}
+                        </td>
+                    {% else %}
+                        <td class="currency-symbol {% if name == '溢短收' and grand_total[key] < 0 %}text-danger{% endif %}">$</td>
+                        <td class="amount fw-bold {% if name == '溢短收' and grand_total[key] < 0 %}text-danger{% endif %}">{{ "{:,.0f}".format(grand_total[key]) }}</td>
+                    {% endif %}
+
+                    {% for location_name in active_locations_ordered %}
+                        {% set report = reports.get(location_name) %}
+                        {% if name == '其他現金' %}
+                            {% set value = (report.donation_total or 0) + (report.other_total or 0) %}
+                        {% elif name == '當日總現金' %}
+                            {% set value = (report.closing_cash or 0) + (report.donation_total or 0) + (report.other_total or 0) %}
+                        {% elif name in ['存款', '明日開店現金'] %}
+                            {% set value = None %}
+                        {% else %}
+                            {% set value = report[attr] %}
+                        {% endif %}
+
+                        {% if value is not none %}
+                            <td class="currency-symbol {% if name == '溢短收' and value < 0 %}text-danger{% endif %}">$</td>
+                            <td class="amount {% if name == '溢短收' and value < 0 %}text-danger{% endif %}">{{ "{:,.0f}".format(value) }}</td>
+                        {% else %}
+                            <td colspan="2" class="table-active"></td>
+                        {% endif %}
+                    {% endfor %}
+                    {% for i in range(5 - (active_locations_ordered|length)) %}
+                    <td colspan="2" class="table-active"></td>
+                    {% endfor %}
+
+                    <!-- Remarks -->
+                    <td class="p-1">
+                        {{ form.remarks[loop.index0].value(class="form-control form-control-sm remark-input", readonly=is_settled) }}
+                        {{ form.remarks[loop.index0].key(value=key) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="d-flex justify-content-end mt-3">
+        {{ form.submit(class="btn btn-primary", disabled=(not all_closed or is_settled)) }}
+    </div>
+
+    <!-- Hidden Fields -->
+    {{ form.total_deposit(class="d-none", id="deposit_input") }}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<!-- Flatpickr 台灣中文語系 -->
+<script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nextDayCashInput = document.getElementById('next_day_cash_input');
+    const depositDisplay = document.getElementById('deposit_display');
+    const depositInput = document.getElementById('deposit_input');
+    const grandTotalG = parseFloat("{{ grand_total.G|default(0) }}");
+
+    // --- ↓↓↓ 新增千分號格式化功能 ↓↓↓ ---
+    function formatNumber(input) {
+        let value = input.value.replace(/[^0-9]/g, ''); // 只保留數字
+        if (value) {
+            input.value = new Intl.NumberFormat('en-US').format(value);
+        } else {
+            input.value = '';
+        }
+    }
+    // --- ↑↑↑ 新增結束 ↑↑↑ ---
+
+    function calculateDeposit() {
+        if(nextDayCashInput.readOnly) return;
+        const rawValue = nextDayCashInput.value.replace(/,/g, ''); // 計算前移除千分號
+        const nextCash = parseFloat(rawValue) || 0;
+        const deposit = grandTotalG - nextCash;
+        
+        depositDisplay.textContent = new Intl.NumberFormat().format(deposit.toFixed(0));
+        depositInput.value = deposit;
+    }
+
+    if (nextDayCashInput) {
+        // 在輸入時即時格式化
+        nextDayCashInput.addEventListener('input', () => formatNumber(nextDayCashInput));
+
+        nextDayCashInput.addEventListener('focus', function() {
+            if (this.readOnly) return;
+            // 移除千分號和 '0'，方便編輯
+            this.value = this.value.replace(/,/g, '');
+            if (this.value === '0') {
+                this.value = '';
+            }
+        });
+
+        nextDayCashInput.addEventListener('blur', function() {
+            if (this.readOnly) return;
+            if (this.value.trim() === '') {
+                this.value = '0';
+            }
+            // 離開焦點時，重新格式化並計算
+            formatNumber(this);
+            calculateDeposit();
+        });
+
+        // 頁面載入時，格式化已有的數字並計算
+        formatNumber(nextDayCashInput);
+        calculateDeposit();
+    }
+    
+    let dateStatusCache = {};
+
+    function fetchDateStatus(instance, callback) {
+        const year = instance.currentYear;
+        const month = instance.currentMonth + 1;
+        const cacheKey = `${year}-${month}`;
+
+        if (dateStatusCache[cacheKey]) {
+            if (callback) callback();
+            return;
+        }
+
+        fetch(`{{ url_for('report.settlement_status_api') }}?year=${year}&month=${month}`)
+            .then(response => response.json())
+            .then(data => {
+                dateStatusCache[cacheKey] = data;
+                if (callback) callback();
+            });
+    }
+
+    const fp = flatpickr("#date-picker", {
+        locale: "zh_tw",
+        dateFormat: "Y-m-d",
+        defaultDate: "{{ report_date.isoformat() }}",
+        onChange: function(selectedDates, dateStr, instance) {
+            instance.element.form.submit();
+        },
+        onReady: function(selectedDates, dateStr, instance) {
+            fetchDateStatus(instance, () => instance.redraw());
+        },
+        onMonthChange: function(selectedDates, dateStr, instance) {
+            fetchDateStatus(instance, () => instance.redraw());
+        },
+        onDayCreate: function(dObj, dStr, fp, dayElem) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); 
+
+            if (dayElem.dateObj > today) {
+                return;
+            }
+
+            const year = dayElem.dateObj.getFullYear();
+            const month = dayElem.dateObj.getMonth() + 1;
+            const cacheKey = `${year}-${month}`;
+            
+            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(dayElem.dateObj.getDate()).padStart(2, '0')}`;
+            
+            const statusData = dateStatusCache[cacheKey];
+            if (statusData && statusData[isoDate]) {
+                const status = statusData[isoDate];
+                const dot = document.createElement('span');
+                dot.className = `day-status-dot dot-${status.replace('_', '-')}`;
+                dayElem.appendChild(dot);
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
+

@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField
 from wtforms.fields import ColorField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
 from .models import User, Role, Category, Location
@@ -20,7 +20,6 @@ class LocationForm(FlaskForm):
     submit = SubmitField('儲存')
 
 class CategoryForm(FlaskForm):
-    """新增/編輯商品類別的表單"""
     name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
     color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
     
@@ -68,21 +67,32 @@ class ReportQueryForm(FlaskForm):
         ('daily_summary', '各據點每日報表'),
         ('daily_cash_summary', '當日手帳與現金'),
         ('transaction_log', '各據點交易細節'),
-        ('combined_summary_final', '合併報表總結'), # <-- 修改點：新增選項
+        ('combined_summary_final', '合併報表總結 (現金核對)')
     ], validators=[DataRequired()])
     
     location_id = SelectField('據點', coerce=str, validators=[Optional()])
     start_date = DateField('查詢日期', validators=[DataRequired()], default=date.today)
-    end_date = DateField('結束日期', validators=[Optional()], default=date.today) # 設為 Optional
+    end_date = DateField('結束日期', validators=[Optional()])
     submit = SubmitField('查詢')
 
     def __init__(self, *args, **kwargs):
         super(ReportQueryForm, self).__init__(*args, **kwargs)
         self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by('name').all()]
 
+class SettlementRemarkForm(FlaskForm):
+    key = HiddenField()
+    value = StringField('備註', validators=[Optional(), Length(max=200)])
+
+class SettlementForm(FlaskForm):
+    report_date = HiddenField()
+    total_deposit = FloatField(validators=[DataRequired()])
+    total_next_day_opening_cash = FloatField(validators=[DataRequired()])
+    # --- ↓↓↓ 在這裡新增 min_entries=9，解決備註欄位問題 --- ↓↓↓
+    remarks = FieldList(FormField(SettlementRemarkForm), min_entries=9)
+    # --- ↑↑↑ 修改結束 ↑↑↑ ---
+    submit = SubmitField('儲存總結算資料')
+
 class RoleForm(FlaskForm):
-# ... (此 class 之後的內容維持不變) ...
-    """新增/編輯角色的表單"""
     name = StringField('角色名稱', validators=[DataRequired(), Length(1, 64)])
     permissions = SelectMultipleField(
         '權限', 
@@ -93,7 +103,6 @@ class RoleForm(FlaskForm):
     submit = SubmitField('儲存')
 
 class UserForm(FlaskForm):
-    """新增/編輯使用者的表單"""
     username = StringField('使用者名稱', validators=[DataRequired(), Length(1, 64), Regexp('^[A-Za-z][A-Za-z0-9_.]*$', 0, '使用者名稱只能包含字母、數字、點或底線')])
     password = PasswordField('密碼', validators=[
         EqualTo('password2', message='兩次輸入的密碼必須相符。')
@@ -118,11 +127,10 @@ class UserForm(FlaskForm):
                  raise ValidationError('此使用者名稱已被使用。')
 
 class GoogleSettingsForm(FlaskForm):
-    """用於管理 Google Drive 和 Sheets 設定的表單"""
     drive_folder_name = StringField(
         'Google Drive 資料夾名稱',
         validators=[DataRequired(message="請輸入資料夾名稱。")],
-        description="所有報表將會備份到您 Google Drive 中以此名稱命名的資料夾。"
+        description="所有報表將會備份到您 Google Drive 中以此名稱命名名的資料夾。"
     )
     sheets_filename_format = StringField(
         'Google Sheets 檔名格式',
@@ -130,3 +138,4 @@ class GoogleSettingsForm(FlaskForm):
         description="支援的變數: {location_name}, {location_slug}, {year}, {month}。例如: {location_name}_{year}_業績"
     )
     submit = SubmitField('儲存設定')
+

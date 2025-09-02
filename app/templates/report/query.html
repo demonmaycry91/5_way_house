@@ -19,16 +19,15 @@
                 {{ form.location_id.label(class="form-label") }}
                 {{ form.location_id(class="form-select") }}
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 {{ form.start_date.label(class="form-label") }}
                 {{ form.start_date(class="form-control") }}
             </div>
-            <div class="col-md-3 d-grid align-self-stretch" id="endDateContainer" style="display: none;">
-                {# 結束日期欄位預設隱藏，由 JS 控制 #}
+            <div class="col-md-2" id="endDateContainer">
                 {{ form.end_date.label(class="form-label") }}
                 {{ form.end_date(class="form-control") }}
             </div>
-            <div class="col-md-3 d-grid align-self-stretch">
+            <div class="col-md-2 d-grid align-self-stretch">
                 {{ form.submit(class="btn btn-primary w-100") }}
             </div>
         </form>
@@ -169,127 +168,43 @@
                 </table>
             </div>
 
-        <!-- --- ↓↓↓ 在這裡新增合併報表總結的顯示區塊 ↓↓↓ --- -->
+        <!-- --- ↓↓↓ 在這裡修改為只顯示現金核對結果 ↓↓↓ --- -->
         {% elif report_type == 'combined_summary_final' %}
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover" style="font-size: 0.9rem;">
-                    <thead class="table-light align-middle text-center">
-                        <tr>
-                            <th rowspan="2">項目</th>
-                            <th rowspan="2">計算/填入方式</th>
-                            <th rowspan="2">總計</th>
-                            {% for detail in results %}
-                                <th colspan="2">{{ detail.location_name }}</th>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            {% for detail in results %}
-                                <th>手帳登錄</th>
-                                <th>備註</th>
-                            {% endfor %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>A - 應有現金</strong></td>
-                            <td>B + C</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.a) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.a) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>B - 手帳營收</strong></td>
-                            <td>帶入</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.b) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.b) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>C - 開店現金</strong></td>
-                            <td>帶入</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.c) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.c) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>D - 實有現金</strong></td>
-                            <td>帶入</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.d) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.d) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>E - 溢短收</strong></td>
-                            <td>D - A</td>
-                            <td class="text-end fw-bold {% if grand_total.e < 0 %}text-danger{% endif %}">${{ "{:,.0f}".format(grand_total.e) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end {% if detail.e < 0 %}text-danger{% endif %}">${{ "{:,.0f}".format(detail.e) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>F - 其他現金</strong></td>
-                            <td>捐款+其他</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.f) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.f) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>G - 當日總現金</strong></td>
-                            <td>D + F</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.g) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.g) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                         <tr>
-                            <td><strong>H - 存款</strong></td>
-                            <td>G - I</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.h) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.h) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr>
-                            <td><strong>I - 明日開店現金</strong></td>
-                            <td>手動填入</td>
-                            <td class="text-end fw-bold">${{ "{:,.0f}".format(grand_total.i) }}</td>
-                            {% for detail in results %}
-                                <td class="text-end">${{ "{:,.0f}".format(detail.i) }}</td>
-                                <td></td>
-                            {% endfor %}
-                        </tr>
-                        <tr class="table-secondary">
-                            <td><strong>J - 現金核對</strong></td>
-                            <td colspan="2">昨日(I) vs 今日(C)</td>
-                            {% for detail in results %}
-                                <td class="text-center">
-                                    <span class="badge {{ 'bg-success' if detail.j_status == '相符' else ('bg-danger' if detail.j_status == '不符' else 'bg-secondary') }}">
-                                        {{ detail.j_status }}
-                                    </span>
-                                </td>
-                                <td class="text-end {% if detail.j_diff != 0 %}text-danger fw-bold{% endif %}">
-                                    {{ "{:,.0f}".format(detail.j_diff) if detail.j_status == '不符' else '' }}
-                                </td>
-                            {% endfor %}
-                        </tr>
-                    </tbody>
-                </table>
+            <h4>{{ results.query_date.strftime('%Y-%m-%d') }} 開店現金總額核對</h4>
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-header">昨日預留總額 (I)</div>
+                        <div class="card-body">
+                            <h3 class="card-title">${{ "{:,.0f}".format(results.yesterday_total) }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-header">今日開店總額 (C)</div>
+                        <div class="card-body">
+                            <h3 class="card-title">${{ "{:,.0f}".format(results.today_total) }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center {% if results.cash_check_diff == 0 %}border-success{% else %}border-danger{% endif %}">
+                        <div class="card-header {% if results.cash_check_diff == 0 %}bg-success text-white{% else %}bg-danger text-white{% endif %}">核對結果</div>
+                        <div class="card-body {% if results.cash_check_diff != 0 %}text-danger{% endif %}">
+                            <h3 class="card-title">
+                                {% if results.cash_check_diff == 0 %}
+                                    相符
+                                {% else %}
+                                    差異：${{ "{:,.0f}".format(results.cash_check_diff) }}
+                                {% endif %}
+                            </h3>
+                        </div>
+                    </div>
+                </div>
             </div>
-        <!-- --- ↑↑↑ 新增結束 ↑↑↑ --- -->
-            
+        <!-- --- ↑↑↑ 修改結束 ↑↑↑ --- -->
+
         {% else %}
             <p class="text-center text-muted">請選擇查詢條件以產生報表。</p>
         {% endif %}

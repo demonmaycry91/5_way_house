@@ -106,10 +106,8 @@ class BusinessDay(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     
-    # --- ↓↓↓ 核心修正處 (將 location__id 改回 location_id) ↓↓↓ ---
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
-    # --- ↑↑↑ 修正結束 ↑↑↑ ---
-
+    
     location = db.relationship('Location', back_populates='business_days')
     location_notes = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='NOT_STARTED')
@@ -129,9 +127,35 @@ class BusinessDay(db.Model):
     
     donation_total = db.Column(db.Float, default=0.0)
     other_total = db.Column(db.Float, default=0.0)
+    next_day_opening_cash = db.Column(db.Float, nullable=True)
 
     def __repr__(self):
         return f'<BusinessDay {self.date} - {self.location.name}>'
+
+class DailySettlement(db.Model):
+    """每日總結算模型"""
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, unique=True, nullable=False, index=True)
+    total_deposit = db.Column(db.Float, nullable=True) # H - 存款
+    total_next_day_opening_cash = db.Column(db.Float, nullable=True) # I - 明日開店現金
+    
+    # --- ↓↓↓ 在這裡新增備註欄位 (JSON 格式) ↓↓↓ ---
+    remarks = db.Column(db.Text, nullable=True) # 備註
+    # --- ↑↑↑ 新增結束 ↑↑↑ ---
+
+    def get_remarks(self):
+        if self.remarks:
+            try:
+                return json.loads(self.remarks)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_remarks(self, remarks_dict):
+        self.remarks = json.dumps(remarks_dict)
+
+    def __repr__(self):
+        return f'<DailySettlement {self.date}>'
 
 class Transaction(db.Model):
     """交易紀錄模型"""
@@ -176,3 +200,4 @@ class SystemSetting(db.Model):
             setting = SystemSetting(key=key, value=value)
             db.session.add(setting)
         db.session.commit()
+

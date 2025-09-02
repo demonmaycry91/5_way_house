@@ -31,9 +31,13 @@
                         <a class="nav-link" href="{{ url_for('cashier.dashboard') }}">儀表板</a>
                     </li>
                     <li class="nav-item">
-                        {# --- ▼▼▼ 修改這裡 ▼▼▼ --- #}
-                        <a class="nav-link" href="{{ url_for('report.query') }}">報表查詢</a> 
+                        <a class="nav-link" href="{{ url_for('report.query') }}">報表查詢</a>
                     </li>
+                    {% if current_user.is_authenticated and current_user.has_role('Admin') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('report.settlement') }}">合併報表結算</a>
+                    </li>
+                    {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated and current_user.has_role('Admin') %}
@@ -84,3 +88,4 @@
 </body>
 
 </html>
+
