@@ -10,19 +10,17 @@
     .table td, .table th {
         vertical-align: middle;
     }
-    /* --- ↓↓↓ 移除「$」和金額之間的垂直線 ↓↓↓ --- */
     .currency-symbol {
         text-align: right !important;
         padding-left: 0.2rem !important;
         padding-right: 0.1rem !important;
-        border-right-width: 0 !important; /* 移除右邊框 */
+        border-right-width: 0 !important;
     }
     .amount {
         text-align: right !important;
         font-family: monospace !important;
-        border-left-width: 0 !important; /* 移除左邊框 */
+        border-left-width: 0 !important;
     }
-    /* --- ↑↑↑ 修改結束 ↑↑↑ --- */
     .form-control.amount {
         width: 100%;
         box-sizing: border-box; 
@@ -101,6 +99,9 @@
 
 <form method="POST" action="{{ url_for('report.save_settlement') }}" class="mt-4">
     {{ form.hidden_tag() }}
+    
+    <!-- --- ↓↓↓ 表格一：當日結算 ↓↓↓ --- -->
+    <h4 class="mt-4">當日結算</h4>
     <div class="table-responsive">
         <table class="table table-bordered table-hover" style="table-layout: fixed;">
             <colgroup>
@@ -135,19 +136,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% set items = [
-                    ('A', '應有現金', 'A', 'expected_cash'),
-                    ('B', '手帳營收', 'B', 'total_sales'),
-                    ('C', '開店現金', 'C', 'opening_cash'),
-                    ('D', '實有現金', 'D', 'closing_cash'),
-                    ('E', '溢短收', 'E', 'cash_diff'),
-                    ('F', '其他現金', 'F', 'other_cash'),
-                    ('G', '當日總現金', 'G', 'total_cash'),
-                    ('H', '存款', 'H', 'deposit'),
-                    ('I', '明日開店現金', 'I', 'next_day_cash')
-                ] %}
-
-                {% for num, name, key, attr in items %}
+                {% for num, name, key, attr in finance_items %}
                 <tr>
                     <td class="text-center fw-bold">{{ num }}</td>
                     <td>{{ name }}</td>
@@ -199,6 +188,75 @@
             </tbody>
         </table>
     </div>
+
+    <!-- --- ↓↓↓ 表格二：銷售統計 ↓↓↓ --- -->
+    <h4 class="mt-4">銷售統計</h4>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover" style="table-layout: fixed;">
+            <colgroup>
+                <col style="width: 3%;">
+                <col style="width: 12%;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col style="width: 2ch;">
+                <col style="width: 11ch;">
+                <col>
+            </colgroup>
+            <thead class="table-light">
+                <tr>
+                    <th>序</th>
+                    <th>項目</th>
+                    <th colspan="2" class="text-center">總計</th>
+                    {% for location_name in active_locations_ordered %}
+                        <th colspan="2" class="text-center">{{ location_name }}</th>
+                    {% endfor %}
+                    {% for i in range(5 - (active_locations_ordered|length)) %}
+                        <th colspan="2" class="text-center table-active"></th>
+                    {% endfor %}
+                    <th>備註</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for num, name, key, attr in sales_items %}
+                <tr>
+                    <td class="text-center fw-bold">{{ num }}</td>
+                    <td>{{ name }}</td>
+                    
+                    <!-- Grand Total Data -->
+                    <td class="currency-symbol"></td>
+                    <td class="amount fw-bold">{{ grand_total[key] }}</td>
+
+                    <!-- Location Data -->
+                    {% for location_name in active_locations_ordered %}
+                        {% set report = reports.get(location_name) %}
+                        <td class="currency-symbol"></td>
+                        <td class="amount">{{ report[attr] or 0 }}</td>
+                    {% endfor %}
+
+                    <!-- Blank Columns -->
+                    {% for i in range(5 - (active_locations_ordered|length)) %}
+                    <td colspan="2" class="table-active"></td>
+                    {% endfor %}
+
+                    <!-- Remarks -->
+                    <td class="p-1">
+                        {% set remark_index = 9 + loop.index0 %}
+                        {{ form.remarks[remark_index].value(class="form-control form-control-sm remark-input", readonly=is_settled) }}
+                        {{ form.remarks[remark_index].key(value=key) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     
     <div class="d-flex justify-content-end mt-3">
         {{ form.submit(class="btn btn-primary", disabled=(not all_closed or is_settled)) }}
@@ -221,20 +279,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const depositInput = document.getElementById('deposit_input');
     const grandTotalG = parseFloat("{{ grand_total.G|default(0) }}");
 
-    // --- ↓↓↓ 新增千分號格式化功能 ↓↓↓ ---
     function formatNumber(input) {
-        let value = input.value.replace(/[^0-9]/g, ''); // 只保留數字
+        let value = input.value.replace(/[^0-9]/g, '');
         if (value) {
             input.value = new Intl.NumberFormat('en-US').format(value);
         } else {
             input.value = '';
         }
     }
-    // --- ↑↑↑ 新增結束 ↑↑↑ ---
 
     function calculateDeposit() {
         if(nextDayCashInput.readOnly) return;
-        const rawValue = nextDayCashInput.value.replace(/,/g, ''); // 計算前移除千分號
+        const rawValue = nextDayCashInput.value.replace(/,/g, '');
         const nextCash = parseFloat(rawValue) || 0;
         const deposit = grandTotalG - nextCash;
         
@@ -243,29 +299,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (nextDayCashInput) {
-        // 在輸入時即時格式化
         nextDayCashInput.addEventListener('input', () => formatNumber(nextDayCashInput));
-
         nextDayCashInput.addEventListener('focus', function() {
             if (this.readOnly) return;
-            // 移除千分號和 '0'，方便編輯
             this.value = this.value.replace(/,/g, '');
             if (this.value === '0') {
                 this.value = '';
             }
         });
-
         nextDayCashInput.addEventListener('blur', function() {
             if (this.readOnly) return;
             if (this.value.trim() === '') {
                 this.value = '0';
             }
-            // 離開焦點時，重新格式化並計算
             formatNumber(this);
             calculateDeposit();
         });
-
-        // 頁面載入時，格式化已有的數字並計算
         formatNumber(nextDayCashInput);
         calculateDeposit();
     }

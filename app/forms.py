@@ -5,6 +5,7 @@ from wtforms.validators import DataRequired, Length, Regexp, EqualTo, Validation
 from .models import User, Role, Category, Location
 from datetime import date
 
+# ... (LoginForm, LocationForm, and other forms remain unchanged) ...
 class LoginForm(FlaskForm):
     username = StringField('帳號', validators=[DataRequired(message="請輸入帳號。")])
     password = PasswordField('密碼', validators=[DataRequired(message="請輸入密碼。")])
@@ -81,16 +82,16 @@ class ReportQueryForm(FlaskForm):
 
 class SettlementRemarkForm(FlaskForm):
     key = HiddenField()
-    value = StringField('備註', validators=[Optional(), Length(max=200)])
+    value = StringField()
 
 class SettlementForm(FlaskForm):
-    report_date = HiddenField()
-    total_deposit = FloatField(validators=[DataRequired()])
-    total_next_day_opening_cash = FloatField(validators=[DataRequired()])
-    # --- ↓↓↓ 在這裡新增 min_entries=9，解決備註欄位問題 --- ↓↓↓
-    remarks = FieldList(FormField(SettlementRemarkForm), min_entries=9)
-    # --- ↑↑↑ 修改結束 ↑↑↑ ---
-    submit = SubmitField('儲存總結算資料')
+    date = HiddenField()
+    total_deposit = FloatField(validators=[Optional()])
+    total_next_day_opening_cash = FloatField(validators=[Optional()], default=0)
+    # --- ↓↓↓ 在這裡新增 min_entries 參數 ↓↓↓ ---
+    remarks = FieldList(FormField(SettlementRemarkForm), min_entries=11)
+    # --- ↑↑↑ 新增結束 ↑↑↑ ---
+    submit = SubmitField('儲存總結算')
 
 class RoleForm(FlaskForm):
     name = StringField('角色名稱', validators=[DataRequired(), Length(1, 64)])
