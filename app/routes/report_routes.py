@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, Response
 from flask_login import login_required, current_user
 from ..models import BusinessDay, Transaction, TransactionItem, Location, DailySettlement
 from ..forms import ReportQueryForm, SettlementForm
@@ -8,10 +8,10 @@ from sqlalchemy import func
 from datetime import date, timedelta, datetime
 import json
 from ..decorators import admin_required
+from weasyprint import HTML
 
 bp = Blueprint('report', __name__, url_prefix='/report')
 
-# A fixed order for locations to ensure consistent report layout
 LOCATION_ORDER = ["本舖", "瘋衣舍", "特賣會 1", "特賣會 2", "其他"]
 
 @bp.route('/query', methods=['GET', 'POST'])
@@ -145,16 +145,24 @@ def settlement():
     grand_total_dict['F'] = sum((r.donation_total or 0) + (r.other_total or 0) for r in closed_reports)
     grand_total_dict['G'] = grand_total_dict['D'] + grand_total_dict['F']
     
+    if is_settled:
+        grand_total_dict['H'] = daily_settlement.total_deposit
+        grand_total_dict['I'] = daily_settlement.total_next_day_opening_cash
+    else:
+        grand_total_dict['I'] = 0 
+        grand_total_dict['H'] = grand_total_dict['G'] - grand_total_dict['I']
+
     class GrandTotal:
         def __init__(self, **entries):
             self.__dict__.update(entries)
     
     grand_total = GrandTotal(**grand_total_dict)
     
-    # 填充表單的預設值
+    form.date.data = report_date.isoformat() # <-- 在這裡設定表單的日期
+    
     if is_settled:
-        form.total_deposit.data = daily_settlement.total_deposit
-        form.total_next_day_opening_cash.data = daily_settlement.total_next_day_opening_cash
+        form.total_deposit.data = grand_total.H
+        form.total_next_day_opening_cash.data = grand_total.I
         if daily_settlement.remarks:
             remarks_data = json.loads(daily_settlement.remarks)
             for remark_form in form.remarks:
@@ -162,8 +170,7 @@ def settlement():
                 if key in remarks_data:
                     remark_form.value.data = remarks_data[key]
     else:
-        grand_total.H = grand_total.G
-        form.total_next_day_opening_cash.data = 0
+        form.total_next_day_opening_cash.data = grand_total.I
         form.total_deposit.data = grand_total.H
 
     finance_items = [
@@ -202,7 +209,7 @@ def settlement():
 def save_settlement():
     form = SettlementForm()
     if form.validate_on_submit():
-        report_date = date.fromisoformat(request.form.get('date'))
+        report_date = date.fromisoformat(form.date.data) # <-- 從表單讀取日期
         
         existing_settlement = DailySettlement.query.filter_by(date=report_date).first()
         if existing_settlement:
@@ -225,16 +232,96 @@ def save_settlement():
             db.session.rollback()
             flash(f"儲存時發生錯誤：{e}", "danger")
     else:
-        # --- ↓↓↓ 處理表單驗證失敗的情況 --- ↓↓↓
         error_messages = []
         for field, errors in form.errors.items():
             for error in errors:
                 error_messages.append(f"欄位 '{getattr(form, field).label.text}' 發生錯誤: {error}")
         flash("提交的資料有誤，請重試。 " + " ".join(error_messages), "warning")
-        report_date_str = request.form.get('date', date.today().isoformat())
+        
+        report_date_str = form.date.data or date.today().isoformat()
         return redirect(url_for('report.settlement', date=report_date_str))
         
-    return redirect(url_for('report.settlement', date=request.form.get('date')))
+    return redirect(url_for('report.settlement', date=form.date.data))
+
+@bp.route('/settlement/print/<date_str>')
+@login_required
+@admin_required
+def print_settlement(date_str):
+    try:
+        report_date = date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        flash("無效的日期格式。", "danger")
+        return redirect(url_for('report.settlement'))
+
+    closed_reports = db.session.query(BusinessDay).options(db.joinedload(BusinessDay.location)).filter(
+        BusinessDay.date == report_date,
+        BusinessDay.status == 'CLOSED'
+    ).all()
+    daily_settlement = DailySettlement.query.filter_by(date=report_date).first()
+
+    if not daily_settlement:
+        flash("該日期的合併報表尚未結算，無法列印。", "warning")
+        return redirect(url_for('report.settlement', date=report_date.isoformat()))
+
+    reports = {r.location.name: r for r in closed_reports}
+    active_locations_ordered = [name for name in LOCATION_ORDER if name in reports]
+    
+    grand_total_dict = {
+        'A': sum(r.expected_cash or 0 for r in closed_reports),
+        'B': sum(r.total_sales or 0 for r in closed_reports),
+        'C': sum(r.opening_cash or 0 for r in closed_reports),
+        'D': sum(r.closing_cash or 0 for r in closed_reports),
+        'J': sum(r.total_transactions or 0 for r in closed_reports),
+        'K': sum(r.total_items or 0 for r in closed_reports),
+    }
+    grand_total_dict['E'] = grand_total_dict['D'] - grand_total_dict['A']
+    grand_total_dict['F'] = sum((r.donation_total or 0) + (r.other_total or 0) for r in closed_reports)
+    grand_total_dict['G'] = grand_total_dict['D'] + grand_total_dict['F']
+    grand_total_dict['H'] = daily_settlement.total_deposit
+    grand_total_dict['I'] = daily_settlement.total_next_day_opening_cash
+
+    class GrandTotal:
+        def __init__(self, **entries):
+            self.__dict__.update(entries)
+    
+    grand_total = GrandTotal(**grand_total_dict)
+    
+    remarks_data = json.loads(daily_settlement.remarks) if daily_settlement and daily_settlement.remarks else {}
+
+    finance_items = [
+        ('A', '應有現金', 'A', 'expected_cash'),
+        ('B', '手帳營收', 'B', 'total_sales'),
+        ('C', '開店現金', 'C', 'opening_cash'),
+        ('D', '實有現金', 'D', 'closing_cash'),
+        ('E', '溢短收', 'E', 'cash_diff'),
+        ('F', '其他現金', 'F', 'other_cash'),
+        ('G', '當日總現金', 'G', 'total_cash'),
+        ('H', '存款', 'H', 'deposit'),
+        ('I', '明日開店現金', 'I', 'next_day_cash')
+    ]
+    sales_items = [
+        ('J', '結單數', 'J', 'total_transactions'),
+        ('K', '品項數', 'K', 'total_items')
+    ]
+
+    html_to_render = render_template(
+        'report/settlement_print.html',
+        report_date=report_date,
+        reports=reports,
+        active_locations_ordered=active_locations_ordered,
+        grand_total=grand_total,
+        remarks_data=remarks_data,
+        finance_items=finance_items,
+        sales_items=sales_items
+    )
+    
+    pdf = HTML(string=html_to_render).write_pdf()
+    
+    return Response(
+        pdf,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment;filename=settlement_report_{report_date.isoformat()}.pdf"}
+    )
 
 @bp.route('/api/settlement_status')
 @login_required
@@ -249,18 +336,18 @@ def settlement_status_api():
     start_date = date(year, month, 1)
     end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     
-    business_days = db.session.query(BusinessDay.date, BusinessDay.status).filter(BusinessDay.date.between(start_date, end_date)).all()
+    business_days = db.session.query(BusinessDay.date, BusinessDay.status, Location.name).join(Location).filter(BusinessDay.date.between(start_date, end_date)).all()
     settlements = db.session.query(DailySettlement.date).filter(DailySettlement.date.between(start_date, end_date)).all()
     
     settled_dates = {s.date for s in settlements}
     
     day_statuses = {}
-    for d, status in business_days:
+    for d, status, loc_name in business_days:
         if d not in day_statuses:
-            day_statuses[d] = {'opened': 0, 'closed': 0}
-        day_statuses[d]['opened'] += 1
+            day_statuses[d] = {'opened': set(), 'closed': set()}
+        day_statuses[d]['opened'].add(loc_name)
         if status == 'CLOSED':
-            day_statuses[d]['closed'] += 1
+            day_statuses[d]['closed'].add(loc_name)
             
     response_data = {}
     current_date = start_date
@@ -270,7 +357,7 @@ def settlement_status_api():
             response_data[iso_date] = 'settled'
         elif current_date in day_statuses:
             stats = day_statuses[current_date]
-            if stats['opened'] == stats['closed']:
+            if len(stats['opened']) > 0 and stats['opened'] == stats['closed']:
                 response_data[iso_date] = 'pending'
             else:
                 response_data[iso_date] = 'in_progress'

@@ -5,7 +5,6 @@ from wtforms.validators import DataRequired, Length, Regexp, EqualTo, Validation
 from .models import User, Role, Category, Location
 from datetime import date
 
-# ... (LoginForm, LocationForm, and other forms remain unchanged) ...
 class LoginForm(FlaskForm):
     username = StringField('帳號', validators=[DataRequired(message="請輸入帳號。")])
     password = PasswordField('密碼', validators=[DataRequired(message="請輸入密碼。")])
@@ -82,16 +81,14 @@ class ReportQueryForm(FlaskForm):
 
 class SettlementRemarkForm(FlaskForm):
     key = HiddenField()
-    value = StringField()
+    value = StringField('備註', validators=[Optional(), Length(max=200)])
 
 class SettlementForm(FlaskForm):
-    date = HiddenField()
-    total_deposit = FloatField(validators=[Optional()])
-    total_next_day_opening_cash = FloatField(validators=[Optional()], default=0)
-    # --- ↓↓↓ 在這裡新增 min_entries 參數 ↓↓↓ ---
+    date = HiddenField() # <-- 在這裡新增隱藏的日期欄位
+    total_deposit = FloatField(validators=[DataRequired()])
+    total_next_day_opening_cash = FloatField(validators=[DataRequired()])
     remarks = FieldList(FormField(SettlementRemarkForm), min_entries=11)
-    # --- ↑↑↑ 新增結束 ↑↑↑ ---
-    submit = SubmitField('儲存總結算')
+    submit = SubmitField('儲存所有明日開店現金')
 
 class RoleForm(FlaskForm):
     name = StringField('角色名稱', validators=[DataRequired(), Length(1, 64)])

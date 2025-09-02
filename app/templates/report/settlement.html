@@ -81,9 +81,18 @@
 {% endwith %}
 
 {% if is_settled %}
-<div class="alert alert-info">
-    <h4 class="alert-heading">唯讀模式</h4>
-    <p>本日的總結算已歸檔，無法再進行任何修改，僅供查閱。</p>
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="alert-heading">唯讀模式</h4>
+        <p class="mb-0">本日的總結算已歸檔，無法再進行任何修改，僅供查閱。</p>
+    </div>
+    <a href="{{ url_for('report.print_settlement', date_str=report_date.isoformat()) }}" class="btn btn-secondary">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer-fill" viewBox="0 0 16 16">
+            <path d="M5 1a2 2 0 0 0-2 2v1h10V3a2 2 0 0 0-2-2zm6 8H5a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1"/>
+            <path d="M0 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1v-2a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2H2a2 2 0 0 1-2-2zm2.5 1a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
+        </svg>
+        下載 PDF
+    </a>
 </div>
 {% elif not all_closed %}
 <div class="alert alert-warning">
@@ -97,10 +106,11 @@
 </div>
 {% endif %}
 
-<form method="POST" action="{{ url_for('report.save_settlement') }}" class="mt-4">
+<form method="POST" action="{{ url_for('report.save_settlement') }}" class="mt-4" id="settlement-form">
     {{ form.hidden_tag() }}
+    {{ form.date }}
     
-    <!-- --- ↓↓↓ 表格一：當日結算 ↓↓↓ --- -->
+    <!-- 表格一：當日結算 -->
     <h4 class="mt-4">當日結算</h4>
     <div class="table-responsive">
         <table class="table table-bordered table-hover" style="table-layout: fixed;">
@@ -189,7 +199,7 @@
         </table>
     </div>
 
-    <!-- --- ↓↓↓ 表格二：銷售統計 ↓↓↓ --- -->
+    <!-- 表格二：銷售統計 -->
     <h4 class="mt-4">銷售統計</h4>
     <div class="table-responsive">
         <table class="table table-bordered table-hover" style="table-layout: fixed;">
@@ -278,11 +288,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const depositDisplay = document.getElementById('deposit_display');
     const depositInput = document.getElementById('deposit_input');
     const grandTotalG = parseFloat("{{ grand_total.G|default(0) }}");
+    const settlementForm = document.getElementById('settlement-form');
 
     function formatNumber(input) {
-        let value = input.value.replace(/[^0-9]/g, '');
-        if (value) {
-            input.value = new Intl.NumberFormat('en-US').format(value);
+        // First, remove any existing commas to get a clean number string
+        let cleanValue = input.value.replace(/,/g, '');
+        // Parse it as a float, then round to the nearest integer
+        let num = Math.round(parseFloat(cleanValue));
+        
+        // If it's a valid number (not NaN), format it. Otherwise, clear the input.
+        if (!isNaN(num)) {
+            input.value = new Intl.NumberFormat('en-US').format(num);
         } else {
             input.value = '';
         }
@@ -319,6 +335,15 @@ document.addEventListener('DOMContentLoaded', function() {
         calculateDeposit();
     }
     
+    if (settlementForm) {
+        settlementForm.addEventListener('submit', function(event) {
+            if (nextDayCashInput) {
+                const rawValue = nextDayCashInput.value.replace(/,/g, '');
+                nextDayCashInput.value = rawValue;
+            }
+        });
+    }
+
     let dateStatusCache = {};
 
     function fetchDateStatus(instance, callback) {
