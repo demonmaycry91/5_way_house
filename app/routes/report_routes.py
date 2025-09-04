@@ -28,38 +28,29 @@ def query():
         end_date = form.end_date.data if form.end_date.data else start_date
         location_id = form.location_id.data
 
+        query_base = db.session.query(BusinessDay).options(
+            db.joinedload(BusinessDay.location)
+        ).filter(
+            BusinessDay.date.between(start_date, end_date)
+        )
+
+        if location_id != 'all':
+            query_base = query_base.filter(BusinessDay.location_id == location_id)
+
         if report_type == 'daily_summary':
-            query = db.session.query(BusinessDay).options(
-                db.joinedload(BusinessDay.location)
-            ).filter(
-                BusinessDay.date.between(start_date, end_date),
-                BusinessDay.status == 'CLOSED'
-            )
-            if location_id != 'all':
-                query = query.filter(BusinessDay.location_id == location_id)
-            results = query.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
+            results = query_base.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
 
         elif report_type == 'transaction_log':
-            query = db.session.query(Transaction).join(BusinessDay).options(
+            business_day_ids = [b.id for b in query_base.all()]
+            results = db.session.query(Transaction).join(BusinessDay).options(
                 selectinload(Transaction.items).selectinload(TransactionItem.category),
                 db.joinedload(Transaction.business_day).joinedload(BusinessDay.location)
             ).filter(
-                BusinessDay.date == start_date
-            )
-            if location_id != 'all':
-                query = query.filter(BusinessDay.location_id == location_id)
-            results = query.order_by(Transaction.timestamp).all()
+                Transaction.business_day_id.in_(business_day_ids)
+            ).order_by(Transaction.timestamp).all()
 
         elif report_type == 'daily_cash_summary':
-            query = db.session.query(BusinessDay).options(
-                db.joinedload(BusinessDay.location)
-            ).filter(
-                BusinessDay.date == start_date,
-                BusinessDay.status == 'CLOSED'
-            )
-            if location_id != 'all':
-                query = query.filter(BusinessDay.location_id == location_id)
-            results = query.order_by(BusinessDay.location_id).all()
+            results = query_base.order_by(BusinessDay.date, BusinessDay.location_id).all()
 
             if results:
                 grand_total_dict = {
@@ -78,24 +69,53 @@ def query():
                         self.__dict__.update(entries)
                 grand_total = GrandTotal(**grand_total_dict)
         
+        # --- ↓↓↓ 在這裡修改合併報表總結的邏輯 ↓↓↓ ---
         elif report_type == 'combined_summary_final':
-            previous_date = start_date - timedelta(days=1)
             
-            yesterday_settlement = DailySettlement.query.filter_by(date=previous_date).first()
-            today_reports = db.session.query(BusinessDay).options(db.joinedload(BusinessDay.location)).filter(BusinessDay.date == start_date, BusinessDay.status == 'CLOSED').all()
+            check_results = []
             
-            total_next_day_cash_from_yesterday = yesterday_settlement.total_next_day_opening_cash if yesterday_settlement else 0
-            total_opening_cash_today = sum(r.opening_cash or 0 for r in today_reports)
+            # 取得範圍內的所有結算與營業日資料
+            all_settlements = DailySettlement.query.filter(
+                DailySettlement.date.between(start_date - timedelta(days=1), end_date)
+            ).all()
+            all_business_days = BusinessDay.query.filter(
+                BusinessDay.date.between(start_date, end_date)
+            ).all()
             
-            cash_check_diff = total_opening_cash_today - total_next_day_cash_from_yesterday
+            # 將資料轉換為字典以便快速查找
+            settlements_by_date = {s.date: s for s in all_settlements}
+            business_days_by_date = {}
+            for bd in all_business_days:
+                if bd.date not in business_days_by_date:
+                    business_days_by_date[bd.date] = []
+                business_days_by_date[bd.date].append(bd)
 
-            results = {
-                'reports_by_loc': {r.location.name: r for r in today_reports},
-                'cash_check_diff': cash_check_diff,
-                'yesterday_total': total_next_day_cash_from_yesterday,
-                'today_total': total_opening_cash_today,
-                'location_order': LOCATION_ORDER
-            }
+            # 遍歷日期範圍
+            current_date = start_date
+            while current_date <= end_date:
+                previous_date = current_date - timedelta(days=1)
+                
+                yesterday_settlement = settlements_by_date.get(previous_date)
+                today_reports = business_days_by_date.get(current_date, [])
+                
+                total_next_day_cash_from_yesterday = yesterday_settlement.total_next_day_opening_cash if yesterday_settlement else 0
+                total_opening_cash_today = sum(r.opening_cash or 0 for r in today_reports)
+                
+                cash_check_diff = total_opening_cash_today - total_next_day_cash_from_yesterday
+
+                # 只有當天或前一天有資料時，才加入結果列表
+                if today_reports or yesterday_settlement:
+                    check_results.append({
+                        'date': current_date,
+                        'cash_check_diff': cash_check_diff,
+                        'yesterday_total': total_next_day_cash_from_yesterday,
+                        'today_total': total_opening_cash_today
+                    })
+                
+                current_date += timedelta(days=1)
+            
+            results = check_results
+        # --- ↑↑↑ 修改結束 ↑↑↑ ---
 
     return render_template('report/query.html', 
                            form=form, 
@@ -158,7 +178,7 @@ def settlement():
     
     grand_total = GrandTotal(**grand_total_dict)
     
-    form.date.data = report_date.isoformat() # <-- 在這裡設定表單的日期
+    form.date.data = report_date.isoformat()
     
     if is_settled:
         form.total_deposit.data = grand_total.H
@@ -209,7 +229,7 @@ def settlement():
 def save_settlement():
     form = SettlementForm()
     if form.validate_on_submit():
-        report_date = date.fromisoformat(form.date.data) # <-- 從表單讀取日期
+        report_date = date.fromisoformat(form.date.data)
         
         existing_settlement = DailySettlement.query.filter_by(date=report_date).first()
         if existing_settlement:
@@ -361,6 +381,45 @@ def settlement_status_api():
                 response_data[iso_date] = 'pending'
             else:
                 response_data[iso_date] = 'in_progress'
+        else:
+            response_data[iso_date] = 'no_data'
+        
+        current_date += timedelta(days=1)
+        
+    return jsonify(response_data)
+
+@bp.route('/api/query_status')
+@login_required
+def query_status_api():
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    
+    if not year or not month:
+        return jsonify({"error": "Year and month are required"}), 400
+
+    start_date = date(year, month, 1)
+    end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    
+    business_days = db.session.query(BusinessDay.date, BusinessDay.status).filter(
+        BusinessDay.date.between(start_date, end_date)
+    ).all()
+    
+    day_statuses = {}
+    for d, status in business_days:
+        if d not in day_statuses:
+            day_statuses[d] = []
+        day_statuses[d].append(status)
+            
+    response_data = {}
+    current_date = start_date
+    while current_date <= end_date:
+        iso_date = current_date.isoformat()
+        if current_date in day_statuses:
+            statuses = set(day_statuses[current_date])
+            if 'OPEN' in statuses or 'PENDING_REPORT' in statuses:
+                response_data[iso_date] = 'in_progress'
+            else:
+                response_data[iso_date] = 'ready'
         else:
             response_data[iso_date] = 'no_data'
         

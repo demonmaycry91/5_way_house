@@ -20,6 +20,7 @@ class LocationForm(FlaskForm):
     submit = SubmitField('儲存')
 
 class CategoryForm(FlaskForm):
+    """新增/編輯商品類別的表單"""
     name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
     color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
     
@@ -65,32 +66,35 @@ class ConfirmReportForm(FlaskForm):
 class ReportQueryForm(FlaskForm):
     report_type = SelectField('報表類型', choices=[
         ('daily_summary', '各據點每日報表'),
-        ('daily_cash_summary', '當日手帳與現金'),
+        # --- ↓↓↓ 在這裡修改名稱 ↓↓↓ ---
+        ('daily_cash_summary', '各據點當日結算'),
+        # --- ↑↑↑ 修改結束 ↑↑↑ ---
         ('transaction_log', '各據點交易細節'),
         ('combined_summary_final', '合併報表總結 (現金核對)')
     ], validators=[DataRequired()])
     
     location_id = SelectField('據點', coerce=str, validators=[Optional()])
-    start_date = DateField('查詢日期', validators=[DataRequired()], default=date.today)
+    start_date = DateField('開始日期', validators=[DataRequired()], default=date.today)
     end_date = DateField('結束日期', validators=[Optional()])
     submit = SubmitField('查詢')
 
     def __init__(self, *args, **kwargs):
         super(ReportQueryForm, self).__init__(*args, **kwargs)
-        self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by('name').all()]
+        self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
 
 class SettlementRemarkForm(FlaskForm):
     key = HiddenField()
-    value = StringField('備註', validators=[Optional(), Length(max=200)])
+    value = StringField()
 
 class SettlementForm(FlaskForm):
-    date = HiddenField() # <-- 在這裡新增隱藏的日期欄位
-    total_deposit = FloatField(validators=[DataRequired()])
-    total_next_day_opening_cash = FloatField(validators=[DataRequired()])
+    date = HiddenField()
+    total_deposit = FloatField(validators=[Optional()])
+    total_next_day_opening_cash = FloatField(validators=[DataRequired(message="請輸入明日開店現金。")])
     remarks = FieldList(FormField(SettlementRemarkForm), min_entries=11)
     submit = SubmitField('儲存所有明日開店現金')
 
 class RoleForm(FlaskForm):
+    """新增/編輯角色的表單"""
     name = StringField('角色名稱', validators=[DataRequired(), Length(1, 64)])
     permissions = SelectMultipleField(
         '權限', 
@@ -101,6 +105,7 @@ class RoleForm(FlaskForm):
     submit = SubmitField('儲存')
 
 class UserForm(FlaskForm):
+    """新增/編輯使用者的表單"""
     username = StringField('使用者名稱', validators=[DataRequired(), Length(1, 64), Regexp('^[A-Za-z][A-Za-z0-9_.]*$', 0, '使用者名稱只能包含字母、數字、點或底線')])
     password = PasswordField('密碼', validators=[
         EqualTo('password2', message='兩次輸入的密碼必須相符。')
@@ -125,6 +130,7 @@ class UserForm(FlaskForm):
                  raise ValidationError('此使用者名稱已被使用。')
 
 class GoogleSettingsForm(FlaskForm):
+    """用於管理 Google Drive 和 Sheets 設定的表單"""
     drive_folder_name = StringField(
         'Google Drive 資料夾名稱',
         validators=[DataRequired(message="請輸入資料夾名稱。")],

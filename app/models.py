@@ -127,35 +127,11 @@ class BusinessDay(db.Model):
     
     donation_total = db.Column(db.Float, default=0.0)
     other_total = db.Column(db.Float, default=0.0)
+
     next_day_opening_cash = db.Column(db.Float, nullable=True)
 
     def __repr__(self):
         return f'<BusinessDay {self.date} - {self.location.name}>'
-
-class DailySettlement(db.Model):
-    """每日總結算模型"""
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, unique=True, nullable=False, index=True)
-    total_deposit = db.Column(db.Float, nullable=True) # H - 存款
-    total_next_day_opening_cash = db.Column(db.Float, nullable=True) # I - 明日開店現金
-    
-    # --- ↓↓↓ 在這裡新增備註欄位 (JSON 格式) ↓↓↓ ---
-    remarks = db.Column(db.Text, nullable=True) # 備註
-    # --- ↑↑↑ 新增結束 ↑↑↑ ---
-
-    def get_remarks(self):
-        if self.remarks:
-            try:
-                return json.loads(self.remarks)
-            except json.JSONDecodeError:
-                return {}
-        return {}
-
-    def set_remarks(self, remarks_dict):
-        self.remarks = json.dumps(remarks_dict)
-
-    def __repr__(self):
-        return f'<DailySettlement {self.date}>'
 
 class Transaction(db.Model):
     """交易紀錄模型"""
@@ -165,6 +141,11 @@ class Transaction(db.Model):
     item_count = db.Column(db.Integer, nullable=False)
     business_day_id = db.Column(db.Integer, db.ForeignKey('business_day.id'), nullable=False)
     items = db.relationship('TransactionItem', back_populates='transaction', lazy=True, cascade="all, delete-orphan")
+
+    # --- ↓↓↓ 在這裡修改欄位定義 ↓↓↓ ---
+    cash_received = db.Column(db.Float, nullable=True)
+    change_given = db.Column(db.Float, nullable=True)
+    # --- ↑↑↑ 修改結束 ↑↑↑ ---
 
     def __repr__(self):
         return f'<Transaction {self.id} - Amount: {self.amount}>'
@@ -180,6 +161,13 @@ class TransactionItem(db.Model):
 
     def __repr__(self):
         return f'<TransactionItem {self.id} - Price: {self.price}>'
+
+class DailySettlement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, unique=True)
+    total_deposit = db.Column(db.Float, nullable=True)
+    total_next_day_opening_cash = db.Column(db.Float, nullable=True)
+    remarks = db.Column(db.Text, nullable=True) # Stored as JSON
 
 class SystemSetting(db.Model):
     __tablename__ = 'system_setting'
