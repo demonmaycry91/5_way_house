@@ -6,6 +6,8 @@
 {% block styles %}
 <!-- Flatpickr CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<!-- Flatpickr 月份選擇外掛 CSS -->
+<link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/plugins/monthSelect/style.css">
 <style>
     .flatpickr-day .day-status-dot {
         position: absolute;
@@ -19,6 +21,48 @@
     .dot-ready { background-color: #198754; }
     .dot-in-progress { background-color: #ffc107; }
     .dot-no-data { background-color: #6c757d; }
+    
+    /* 外框：固定高度，用於穩定版面 */
+    .chart-wrapper {
+        height: 50vh; /* **關鍵：設定一個固定的高度** */
+        min-height: 400px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* 內框：只負責容納 Canvas */
+    .chart-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        max-width: 900px;
+    }
+    
+    .form-row-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: flex-end;
+    }
+    .form-group {
+        flex: 1 1 auto;
+        min-width: 150px;
+    }
+    .periodic-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .submit-group {
+        margin-left: auto;
+    }
+    .placeholder-visible {
+        visibility: visible;
+    }
+    .placeholder-hidden {
+        visibility: hidden;
+    }
 </style>
 {% endblock %}
 
@@ -27,27 +71,54 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <form method="POST" action="" class="row g-3 align-items-end" novalidate>
+        <form method="POST" action="{{ url_for('report.query') }}" id="report-query-form" novalidate>
             {{ form.hidden_tag() }}
-
-            <div class="col-md-3">
-                {{ form.report_type.label(class="form-label") }}
-                {{ form.report_type(class="form-select", id="reportTypeSelect") }}
-            </div>
-            <div class="col-md-3">
-                {{ form.location_id.label(class="form-label") }}
-                {{ form.location_id(class="form-select", id="locationSelect") }}
-            </div>
-            <div class="col-md-2">
-                {{ form.start_date.label(class="form-label") }}
-                {{ form.start_date(class="form-control", id="startDatePicker") }}
-            </div>
-            <div class="col-md-2">
-                {{ form.end_date.label(class="form-label") }}
-                {{ form.end_date(class="form-control", id="endDatePicker") }}
-            </div>
-            <div class="col-md-2 d-grid align-self-end">
-                {{ form.submit(class="btn btn-primary") }}
+            <div class="form-row-container">
+                <div class="form-group" style="flex-basis: 20%;">
+                    {{ form.report_type.label(class="form-label") }}
+                    {{ form.report_type(class="form-select", id="reportTypeSelect") }}
+                </div>
+                <div class="form-group" style="flex-basis: 20%;">
+                    {{ form.location_id.label(class="form-label") }}
+                    {{ form.location_id(class="form-select", id="locationSelect") }}
+                </div>
+                <div id="time-unit-wrapper" class="form-group placeholder-hidden" style="flex-basis: 10%;">
+                    <label for="timeUnitSelect" class="form-label">時間單位</label>
+                    <select name="time_unit" id="timeUnitSelect" class="form-select">
+                        <option value="month">月</option>
+                        <option value="quarter">季</option>
+                        <option value="year">年</option>
+                    </select>
+                </div>
+                <div id="date-selector-wrapper" class="form-group" style="flex-grow: 2; flex-basis: 30%;">
+                    <div id="standard-date-fields">
+                        <div class="row g-2">
+                            <div class="col">
+                                {{ form.start_date.label(class="form-label") }}
+                                {{ form.start_date(class="form-control", id="startDatePicker") }}
+                            </div>
+                            <div class="col">
+                                {{ form.end_date.label(class="form-label") }}
+                                {{ form.end_date(class="form-control", id="endDatePicker") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div id="periodic-date-fields" style="display: none;">
+                         <div class="row g-2">
+                            <div class="col">
+                                <label class="form-label">比較期間 A</label>
+                                <div id="period-a-selector" class="periodic-group"></div>
+                            </div>
+                            <div class="col">
+                                <label class="form-label">比較期間 B</label>
+                                <div id="period-b-selector" class="periodic-group"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group submit-group">
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </div>
             </div>
         </form>
     </div>
@@ -55,289 +126,391 @@
 
 {% if results is not none %}
 <div class="card mt-4">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">查詢結果</h5>
+        <a href="{{ url_for('report.export_csv') }}?{{ request.query_string.decode('utf-8') }}" id="export-csv-btn" class="btn btn-sm btn-outline-success">
+            匯出為 CSV
+        </a>
     </div>
     <div class="card-body">
+        {% if chart_data and chart_data != '{}' %}
+        <div class="chart-controls text-center mb-3 d-flex justify-content-center gap-3">
+            <div class="btn-group" role="group" aria-label="圖表類型">
+                <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="bar">長條圖</button>
+                <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="line">折線圖</button>
+                <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="pie">圓餅圖</button>
+            </div>
+            <div class="btn-group" role="group" aria-label="圖表比例">
+                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn active" data-ratio="16/9">16:9</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn" data-ratio="4/3">4:3</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="download-chart-btn">下載圖表</button>
+        </div>
+        <div class="chart-wrapper">
+            <div class="chart-container">
+                <canvas id="myChart"></canvas>
+            </div>
+        </div>
+        <hr class="my-4">
+        {% endif %}
+        
+        {# --- 所有報表表格的渲染邏輯維持不變 --- #}
         {% if report_type == 'daily_summary' %}
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    <colgroup>
-                        <col style="width: 15%;">
-                        <col style="width: 12%;">
-                        <col span="7">
-                    </colgroup>
                     <thead>
                         <tr>
-                            <th>日期</th>
-                            <th>據點</th>
-                            <th class="text-end">開店金</th>
-                            <th class="text-end">銷售總額</th>
-                            <th class="text-end">帳面總額</th>
-                            <th class="text-end">盤點現金</th>
-                            <th class="text-end">帳差</th>
-                            <th class="text-center">交易筆數</th>
-                            <th class="text-center">銷售件數</th>
+                            <th>日期</th><th>據點</th><th class="text-end">開店金</th><th class="text-end">銷售總額</th><th class="text-end">帳面總額</th><th class="text-end">盤點現金</th><th class="text-end">帳差</th><th class="text-center">交易筆數</th><th class="text-center">銷售件數</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for day in results %}
-                        <tr class="{{ 'table-warning' if day.status != 'CLOSED' }}">
-                            <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
-                            <td>{{ day.location.name }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.opening_cash or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.total_sales or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.expected_cash or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.closing_cash or 0) }}</td>
-                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}">${{ "{:,.0f}".format(day.cash_diff or 0) }}</td>
-                            <td class="text-center">{{ day.total_transactions or 0 }}</td>
-                            <td class="text-center">{{ day.total_items or 0 }}</td>
+                        <tr>
+                            <td>{{ day.date.strftime('%Y-%m-%d') }}</td><td>{{ day.location.name }}</td><td class="text-end">${{ "{:,.0f}".format(day.opening_cash or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.total_sales or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.expected_cash or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.closing_cash or 0) }}</td><td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}">${{ "{:,.0f}".format(day.cash_diff or 0) }}</td><td class="text-center">{{ day.total_transactions or 0 }}</td><td class="text-center">{{ day.total_items or 0 }}</td>
                         </tr>
                         {% else %}
-                        <tr>
-                            <td colspan="9" class="text-center text-muted">查無資料</td>
-                        </tr>
+                        <tr><td colspan="9" class="text-center text-muted">查無資料</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-
         {% elif report_type == 'transaction_log' %}
-            <div class="table-responsive">
+             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    {# --- ↓↓↓ 在這裡修改欄位寬度與表頭 ↓↓↓ --- #}
-                    <colgroup>
-                        <col style="width: 15%;">
-                        <col style="width: 12%;">
-                        <col>
-                        <col style="width: 8%;">
-                        <col style="width: 12%;">
-                        <col style="width: 12%;">
-                        <col style="width: 12%;">
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th>時間</th>
-                            <th>據點</th>
-                            <th>項目/折扣</th>
-                            <th>類型</th>
-                            <th class="text-end">單價/折扣額</th>
-                            <th class="text-end">收到現金</th>
-                            <th class="text-end">交易總額</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>時間</th><th>據點</th><th>項目/折扣</th><th>類型</th><th class="text-end">單價/折扣額</th><th class="text-end">收到現金</th><th class="text-end">交易總額</th></tr></thead>
                     <tbody>
                         {% for transaction in results %}
                         {% for item in transaction.items %}
-                        <tr class="{{ 'table-warning' if transaction.business_day.status != 'CLOSED' }}">
-                            {% if loop.first %}
-                            <td rowspan="{{ transaction.items | length }}">{{ transaction.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                            <td rowspan="{{ transaction.items | length }}">{{ transaction.business_day.location.name }}</td>
-                            {% endif %}
-                            <td>{{ item.category.name if item.category else '手動輸入' }}</td>
-                            <td><span class="badge {{ 'bg-success' if item.price > 0 else 'bg-danger' }}">{{ '商品' if item.price > 0 else '折扣' }}</span></td>
-                            <td class="text-end">${{ "{:,.0f}".format(item.price) }}</td>
-                            {% if loop.first %}
-                            <td rowspan="{{ transaction.items | length }}" class="text-end">${{ "{:,.0f}".format(transaction.cash_received or 0) }}</td>
-                            <td rowspan="{{ transaction.items | length }}" class="text-end fw-bold">${{ "{:,.0f}".format(transaction.amount) }}</td>
-                            {% endif %}
+                        <tr>
+                            {% if loop.first %}<td rowspan="{{ transaction.items | length }}">{{ transaction.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td><td rowspan="{{ transaction.items | length }}">{{ transaction.business_day.location.name }}</td>{% endif %}
+                            <td>{{ item.category.name if item.category else '手動輸入' }}</td><td><span class="badge {{ 'bg-success' if item.price > 0 else 'bg-danger' }}">{{ '商品' if item.price > 0 else '折扣' }}</span></td><td class="text-end">${{ "{:,.0f}".format(item.price) }}</td>
+                            {% if loop.first %}<td rowspan="{{ transaction.items | length }}" class="text-end">${{ "{:,.0f}".format(transaction.cash_received or 0) }}</td><td class="{{ transaction.items | length }}" class="text-end fw-bold">${{ "{:,.0f}".format(transaction.amount) }}</td>{% endif %}
                         </tr>
                         {% endfor %}
                         {% else %}
-                        <tr>
-                            <td colspan="7" class="text-center">找不到任何交易紀錄。</td>
-                        </tr>
+                        <tr><td colspan="7" class="text-center">找不到任何交易紀錄。</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-
         {% elif report_type == 'daily_cash_summary' %}
-            <div class="table-responsive">
+             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    <colgroup>
-                        <col style="width: 15%;">
-                        <col style="width: 12%;">
-                        <col span="8">
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th>日期</th>
-                            <th>據點</th>
-                            <th class="text-end">開店現金</th>
-                            <th class="text-end">手帳營收</th>
-                            <th class="text-end">應有現金</th>
-                            <th class="text-end">實有現金</th>
-                            <th class="text-end">溢短收</th>
-                            <th class="text-end">捐款</th>
-                            <th class="text-end">其他收入</th>
-                            <th class="text-end">其他現金(總)</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>日期</th><th>據點</th><th class="text-end">開店現金</th><th class="text-end">手帳營收</th><th class="text-end">應有現金</th><th class="text-end">實有現金</th><th class="text-end">溢短收</th><th class="text-end">捐款</th><th class="text-end">其他收入</th><th class="text-end">其他現金(總)</th></tr></thead>
                     <tbody>
                         {% if results %}
                         <tr class="fw-bold table-secondary">
-                            <td colspan="2">總計 ({{ form.start_date.data.strftime('%Y-%m-%d') }}{% if form.end_date.data and form.end_date.data != form.start_date.data %} - {{ form.end_date.data.strftime('%Y-%m-%d') }}{% endif %})</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.opening_cash) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.total_sales) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.expected_cash) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.closing_cash) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.cash_diff) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.donation_total) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.other_total) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(grand_total.other_cash) }}</td>
+                            <td colspan="2">總計 ({{ request.args.get('start_date') }} {% if request.args.get('end_date') and request.args.get('end_date') != request.args.get('start_date') %} - {{ request.args.get('end_date') }}{% endif %})</td>
+                            <td class="text-end">${{ "{:,.0f}".format(grand_total.opening_cash) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.total_sales) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.expected_cash) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.closing_cash) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.cash_diff) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.donation_total) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.other_total) }}</td><td class="text-end">${{ "{:,.0f}".format(grand_total.other_cash) }}</td>
                         </tr>
                         {% for day in results %}
-                        <tr class="{{ 'table-warning' if day.status != 'CLOSED' }}">
-                            <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
-                            <td>{{ day.location.name }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.opening_cash or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.total_sales or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.expected_cash or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.closing_cash or 0) }}</td>
-                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}">${{ "{:,.0f}".format(day.cash_diff or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.donation_total or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day.other_total or 0) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
+                        <tr>
+                            <td>{{ day.date.strftime('%Y-%m-%d') }}</td><td>{{ day.location.name }}</td><td class="text-end">${{ "{:,.0f}".format(day.opening_cash or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.total_sales or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.expected_cash or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.closing_cash or 0) }}</td><td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}">${{ "{:,.0f}".format(day.cash_diff or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.donation_total or 0) }}</td><td class="text-end">${{ "{:,.0f}".format(day.other_total or 0) }}</td><td class="text-end">${{ "{:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
                         </tr>
                         {% endfor %}
                         {% else %}
-                        <tr>
-                            <td colspan="10" class="text-center text-muted">查無資料</td>
-                        </tr>
+                        <tr><td colspan="10" class="text-center text-muted">查無資料</td></tr>
                         {% endif %}
                     </tbody>
                 </table>
             </div>
-            
         {% elif report_type == 'combined_summary_final' %}
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    <colgroup>
-                        <col style="width: 15%;">
-                        <col span="3">
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th>日期</th>
-                            <th class="text-end">昨日預留總額 (I)</th>
-                            <th class="text-end">今日開店總額 (C)</th>
-                            <th class="text-end">核對結果 (差異)</th>
-                        </tr>
-                    </thead>
+                     <thead><tr><th>日期</th><th class="text-end">昨日預留總額 (I)</th><th class="text-end">今日開店總額 (C)</th><th class="text-end">核對結果 (差異)</th></tr></thead>
                     <tbody>
                         {% for day_check in results %}
                         <tr class="{{ 'table-danger' if day_check.cash_check_diff != 0 }}">
-                            <td>{{ day_check.date.strftime('%Y-%m-%d') }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day_check.yesterday_total) }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(day_check.today_total) }}</td>
-                            <td class="text-end {% if day_check.cash_check_diff != 0 %}fw-bold{% endif %}">
-                                {% if day_check.cash_check_diff == 0 %}
-                                    相符
-                                {% else %}
-                                    ${{ "{:,.0f}".format(day_check.cash_check_diff) }}
-                                {% endif %}
+                            <td>{{ day_check.date.strftime('%Y-%m-%d') }}</td><td class="text-end">${{ "{:,.0f}".format(day_check.yesterday_total) }}</td><td class="text-end">${{ "{:,.0f}".format(day_check.today_total) }}</td><td class="text-end {% if day_check.cash_check_diff != 0 %}fw-bold{% endif %}">
+                                {% if day_check.cash_check_diff == 0 %} 相符 {% else %} ${{ "{:,.0f}".format(day_check.cash_check_diff) }} {% endif %}
                             </td>
                         </tr>
                         {% else %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted">查無核對資料</td>
-                        </tr>
+                        <tr><td colspan="4" class="text-center text-muted">查無核對資料</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-
+        {% elif report_type == 'product_mix' %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead><tr><th>產品類別</th><th class="text-end">銷售數量</th><th class="text-end">銷售總額</th><th class="text-end">佔總銷售額 %</th></tr></thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td>{{ row.category_name }}</td><td class="text-end">{{ row.items_sold }}</td><td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td><td class="text-end">{{ "{:.2f}%".format((row.total_sales / total_revenue) * 100) if total_revenue > 0 else "0.00%" }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center">查無資料</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif report_type == 'sales_trend' %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead><tr><th>日期</th><th class="text-end">總銷售額</th><th class="text-end">總交易筆數</th></tr></thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td>{{ row.date.strftime('%Y-%m-%d') }}</td><td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td><td class="text-end">{{ row.total_transactions }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center">查無資料</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif report_type == 'peak_hours' %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead><tr><th>時段</th><th class="text-end">交易筆數</th><th class="text-end">銷售總額</th></tr></thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td>{{ row.hour }}:00 - {{ '%02d' % (row.hour|int + 1) }}:00</td><td class="text-end">{{ row.transactions }}</td><td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center">查無資料</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif report_type == 'periodic_performance' %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th rowspan="2" class="align-middle">時間單位</th>
+                            <th colspan="2" class="text-center">期間 A</th>
+                            <th colspan="2" class="text-center">期間 B</th>
+                            <th colspan="2" class="text-center">差異比較</th>
+                        </tr>
+                        <tr>
+                            <th class="text-end">銷售額</th><th class="text-end">交易數</th>
+                            <th class="text-end">銷售額</th><th class="text-end">交易數</th>
+                            <th class="text-end">銷售額差異</th><th class="text-end">增長率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(row.sales_a) }}</td><td class="text-end">{{ row.trans_a }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(row.sales_b) }}</td><td class="text-end">{{ row.trans_b }}</td>
+                            <td class="text-end {% if row.sales_diff < 0 %}text-danger{% elif row.sales_diff > 0 %}text-success{% endif %}">${{ "{:,.0f}".format(row.sales_diff) }}</td>
+                            <td class="text-end {% if row.sales_perc < 0 %}text-danger{% elif row.sales_perc > 0 %}text-success{% endif %}">
+                                {% if row.sales_perc == 'inf' %}N/A{% else %}{{ "%.2f"|format(row.sales_perc) }}%{% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center">查無資料或比較期間設定不完整</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
             <p class="text-center text-muted">請選擇查詢條件以產生報表。</p>
         {% endif %}
     </div>
 </div>
 {% endif %}
-
 {% endblock %}
 
 {% block scripts %}
-<!-- Flatpickr JS -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<!-- Flatpickr 台灣中文語系 -->
 <script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
+<script src="https://npmcdn.com/flatpickr/dist/plugins/monthSelect/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // --- (所有表單控制、日期選擇器、CSV 匯出邏輯維持不變) ---
     const reportTypeSelect = document.getElementById('reportTypeSelect');
     const locationSelect = document.getElementById('locationSelect');
+    const timeUnitWrapper = document.getElementById('time-unit-wrapper');
+    const timeUnitSelect = document.getElementById('timeUnitSelect');
+    const standardDateFields = document.getElementById('standard-date-fields');
+    const periodicDateFields = document.getElementById('periodic-date-fields');
+    const periodA_container = document.getElementById('period-a-selector');
+    const periodB_container = document.getElementById('period-b-selector');
+    const exportBtn = document.getElementById('export-csv-btn');
 
-    function toggleLocationSelect() {
+    const taiwanLocale = {
+        ...flatpickr.l10ns.zh_tw,
+        months: {
+            shorthand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"],
+            longhand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"],
+        },
+    };
+
+    function createYearSelector(name, defaultYear) {
+        const select = document.createElement('select');
+        select.name = name;
+        select.className = 'form-select';
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear; y >= 2020; y--) {
+            const option = new Option(y, y);
+            if (y == defaultYear) option.selected = true;
+            select.add(option);
+        }
+        return select;
+    }
+
+    function createQuarterSelector(name, defaultQuarter) {
+        const select = document.createElement('select');
+        select.name = name;
+        select.className = 'form-select';
+        for (let q = 1; q <= 4; q++) {
+            const option = new Option(`第 ${q} 季`, q);
+            if (q == defaultQuarter) option.selected = true;
+            select.add(option);
+        }
+        return select;
+    }
+    
+    function updateFormUI() {
         const selectedType = reportTypeSelect.value;
-        if (selectedType === 'combined_summary_final') {
-            locationSelect.disabled = true;
-            locationSelect.value = 'all'; 
+        if (selectedType === 'periodic_performance') {
+            standardDateFields.style.display = 'none';
+            periodicDateFields.style.display = 'block';
+            timeUnitWrapper.classList.replace('placeholder-hidden', 'placeholder-visible');
+            updatePeriodicSelectors();
         } else {
-            locationSelect.disabled = false;
+            standardDateFields.style.display = 'block';
+            periodicDateFields.style.display = 'none';
+            timeUnitWrapper.classList.replace('placeholder-visible', 'placeholder-hidden');
+        }
+        locationSelect.disabled = (selectedType === 'combined_summary_final');
+        if (selectedType === 'combined_summary_final') {
+            locationSelect.value = 'all';
         }
     }
 
-    reportTypeSelect.addEventListener('change', toggleLocationSelect);
-    toggleLocationSelect();
+    function updatePeriodicSelectors() {
+        const unit = timeUnitSelect.value;
+        periodA_container.innerHTML = '';
+        periodB_container.innerHTML = '';
+        const now = new Date();
+        const lastYear = now.getFullYear() - 1;
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const currentQuarter = Math.floor(currentMonth / 3) + 1;
+
+        if (unit === 'month') {
+            const inputA = document.createElement('input');
+            inputA.className = 'form-control'; inputA.name = 'period_a';
+            periodA_container.appendChild(inputA);
+            flatpickr(inputA, {
+                plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "Y F" })],
+                locale: taiwanLocale,
+                defaultDate: `{{ request.args.get('period_a', '') }}` || `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+            });
+
+            const inputB = document.createElement('input');
+            inputB.className = 'form-control'; inputB.name = 'period_b';
+            periodB_container.appendChild(inputB);
+            flatpickr(inputB, {
+                plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "Y F" })],
+                locale: taiwanLocale,
+                defaultDate: `{{ request.args.get('period_b', '') }}` || `${lastYear}-${String(currentMonth + 1).padStart(2, '0')}`
+            });
+        } else if (unit === 'quarter') {
+            periodA_container.appendChild(createYearSelector('year_a', `{{ request.args.get('year_a', '') }}` || currentYear));
+            periodA_container.appendChild(createQuarterSelector('quarter_a', `{{ request.args.get('quarter_a', '') }}` || currentQuarter));
+            periodB_container.appendChild(createYearSelector('year_b', `{{ request.args.get('year_b', '') }}` || lastYear));
+            periodB_container.appendChild(createQuarterSelector('quarter_b', `{{ request.args.get('quarter_b', '') }}` || currentQuarter));
+        } else if (unit === 'year') {
+            periodA_container.appendChild(createYearSelector('year_a', `{{ request.args.get('year_a', '') }}` || currentYear));
+            periodB_container.appendChild(createYearSelector('year_b', `{{ request.args.get('year_b', '') }}` || lastYear));
+        }
+    }
+    
+    reportTypeSelect.addEventListener('change', updateFormUI);
+    timeUnitSelect.addEventListener('change', updatePeriodicSelectors);
+    updateFormUI();
 
     let dateStatusCache = {};
-
     function fetchDateStatus(instance, callback) {
-        const year = instance.currentYear;
-        const month = instance.currentMonth + 1;
-        const cacheKey = `${year}-${month}`;
-
-        if (dateStatusCache[cacheKey]) {
-            if (callback) callback();
-            return;
-        }
-
+        const year = instance.currentYear; const month = instance.currentMonth + 1; const cacheKey = `${year}-${month}`;
+        if (dateStatusCache[cacheKey]) { if (callback) callback(); return; }
         fetch(`{{ url_for('report.query_status_api') }}?year=${year}&month=${month}`)
             .then(response => response.json())
-            .then(data => {
-                dateStatusCache[cacheKey] = data;
-                if (callback) callback();
-            });
+            .then(data => { dateStatusCache[cacheKey] = data; if (callback) callback(); });
     }
     
     const flatpickrConfig = {
-        locale: "zh_tw",
-        dateFormat: "Y-m-d",
-        onReady: function(selectedDates, dateStr, instance) {
-            fetchDateStatus(instance, () => instance.redraw());
-        },
-        onMonthChange: function(selectedDates, dateStr, instance) {
-            fetchDateStatus(instance, () => instance.redraw());
-        },
-        onDayCreate: function(dObj, dStr, fp, dayElem) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const year = dayElem.dateObj.getFullYear();
-            const month = dayElem.dateObj.getMonth() + 1;
-            const cacheKey = `${year}-${month}`;
-            
-            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(dayElem.dateObj.getDate()).padStart(2, '0')}`;
-            
+        locale: "zh_tw", dateFormat: "Y-m-d",
+        onReady: (d, s, i) => fetchDateStatus(i, () => i.redraw()),
+        onMonthChange: (d, s, i) => fetchDateStatus(i, () => i.redraw()),
+        onDayCreate: (dObj, dStr, fp, dayElem) => {
+            const date = dayElem.dateObj;
+            const cacheKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+            const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
             const statusData = dateStatusCache[cacheKey];
             if (statusData && statusData[isoDate]) {
-                const status = statusData[isoDate];
                 const dot = document.createElement('span');
-                dot.className = `day-status-dot dot-${status.replace('_', '-')}`;
+                dot.className = `day-status-dot dot-${statusData[isoDate].replace('_', '-')}`;
                 dayElem.appendChild(dot);
             }
         }
     };
 
-    const fp_start = flatpickr("#startDatePicker", {
-        ...flatpickrConfig,
-        defaultDate: "{{ form.start_date.data.isoformat() if form.start_date.data else 'today' }}"
-    });
-    
-    const fp_end = flatpickr("#endDatePicker", {
-        ...flatpickrConfig,
-        defaultDate: "{{ form.end_date.data.isoformat() if form.end_date.data else '' }}"
-    });
+    flatpickr("#startDatePicker", { ...flatpickrConfig, defaultDate: "{{ request.args.get('start_date', form.start_date.data.isoformat() if form.start_date.data else 'today') }}" });
+    flatpickr("#endDatePicker", { ...flatpickrConfig, defaultDate: "{{ request.args.get('end_date', form.end_date.data.isoformat() if form.end_date.data else '') }}" });
+
+    const chartDataJson = '{{ chart_data | safe or "{}" }}';
+    if(chartDataJson && chartDataJson !== '{}') {
+        const chartData = JSON.parse(chartDataJson);
+        const ctx = document.getElementById('myChart');
+        if (ctx && chartData && chartData.labels && chartData.labels.length > 0) {
+            const reportType = '{{ report_type }}';
+            let defaultType = 'bar';
+            if (reportType === 'sales_trend') defaultType = 'line';
+            if (reportType === 'product_mix' || reportType === 'daily_cash_summary') defaultType = 'pie';
+            
+            const config = { 
+                type: defaultType, 
+                data: chartData, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: (defaultType !== 'pie'),
+                    aspectRatio: 16/9,
+                    scales: { y: { beginAtZero: true, display: (defaultType !== 'pie') }, y1: { beginAtZero: true, display: false, position: 'right' } }, 
+                    plugins: { title: { display: true, text: document.querySelector('#reportTypeSelect option:checked').text }, legend: { position: 'top' } } 
+                } 
+            };
+            if (reportType === 'sales_trend') { config.options.scales.y1.display = true; }
+            const myChart = new Chart(ctx, config);
+
+            document.querySelectorAll('.chart-type-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const type = this.dataset.type;
+                    myChart.config.type = type;
+                    const isPie = (type === 'pie');
+                    myChart.options.maintainAspectRatio = !isPie;
+                    myChart.options.scales.y.display = !isPie;
+                    if (myChart.options.scales.y1) myChart.options.scales.y1.display = !isPie && (reportType === 'sales_trend');
+                    myChart.update();
+                });
+            });
+
+            document.querySelectorAll('.ratio-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    myChart.options.aspectRatio = (this.dataset.ratio === '16/9') ? 16/9 : 4/3;
+                    myChart.resize();
+                });
+            });
+            
+            document.getElementById('download-chart-btn').addEventListener('click', function() {
+                const link = document.createElement('a');
+                link.href = myChart.toBase64Image('image/png', 1);
+                link.download = `chart_${reportType}.png`;
+                link.click();
+            });
+        }
+    }
 });
 </script>
 {% endblock %}

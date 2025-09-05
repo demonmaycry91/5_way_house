@@ -66,11 +66,13 @@ class ConfirmReportForm(FlaskForm):
 class ReportQueryForm(FlaskForm):
     report_type = SelectField('報表類型', choices=[
         ('daily_summary', '各據點每日報表'),
-        # --- ↓↓↓ 在這裡修改名稱 ↓↓↓ ---
         ('daily_cash_summary', '各據點當日結算'),
-        # --- ↑↑↑ 修改結束 ↑↑↑ ---
         ('transaction_log', '各據點交易細節'),
-        ('combined_summary_final', '合併報表總結 (現金核對)')
+        ('combined_summary_final', '合併報表總結 (現金核對)'),
+        ('product_mix', '產品類別銷售分析'),
+        ('sales_trend', '銷售趨勢報告'),
+        ('peak_hours', '時段銷售分析'),
+        ('periodic_performance', '週期性業績分析')
     ], validators=[DataRequired()])
     
     location_id = SelectField('據點', coerce=str, validators=[Optional()])
