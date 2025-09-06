@@ -1,3 +1,4 @@
+# app/forms.py
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField
 from wtforms.fields import ColorField
@@ -67,6 +68,7 @@ class ReportQueryForm(FlaskForm):
     report_type = SelectField('報表類型', choices=[
         ('daily_summary', '各據點每日報表'),
         ('daily_cash_summary', '各據點當日結算'),
+        ('daily_cash_check', '現金盤點'),
         ('transaction_log', '各據點交易細節'),
         ('combined_summary_final', '合併報表總結 (現金核對)'),
         ('product_mix', '產品類別銷售分析'),
@@ -144,4 +146,3 @@ class GoogleSettingsForm(FlaskForm):
         description="支援的變數: {location_name}, {location_slug}, {year}, {month}。例如: {location_name}_{year}_業績"
     )
     submit = SubmitField('儲存設定')
-

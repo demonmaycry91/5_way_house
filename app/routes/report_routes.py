@@ -1,3 +1,4 @@
+# app/routes/report_routes.py
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, Response
 from flask_login import login_required, current_user
 from ..models import BusinessDay, Transaction, TransactionItem, Location, DailySettlement, Category
@@ -17,6 +18,12 @@ from collections import defaultdict
 bp = Blueprint('report', __name__, url_prefix='/report')
 
 LOCATION_ORDER = ["本舖", "瘋衣舍", "特賣會 1", "特賣會 2", "其他"]
+DENOMINATIONS = [1000, 500, 200, 100, 50, 10, 5, 1]
+
+@bp.before_request
+@login_required
+def before_request():
+    pass
 
 def get_date_range_from_period(time_unit, year=None, month=None, quarter=None, period_str=None):
     """根據時間單位和參數，計算開始與結束日期"""
@@ -41,7 +48,7 @@ def get_date_range_from_period(time_unit, year=None, month=None, quarter=None, p
 
 
 @bp.route('/query', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def query():
     form = ReportQueryForm()
     
@@ -73,7 +80,7 @@ def query():
             start_date_b, end_date_b = get_date_range_from_period(time_unit, year=request.args.get('year_b'), quarter=request.args.get('quarter_b'), period_str=request.args.get('period_b'))
             if not all([start_date_a, end_date_a, start_date_b, end_date_b]):
                  flash('週期性報表的時間參數不完整或格式錯誤，請重新選擇。', 'warning')
-                 return redirect(url_for('report.query'))
+                 return render_template('report/query.html', form=form)
 
         if report_type != 'periodic_performance':
             query_base = db.session.query(BusinessDay).options(db.joinedload(BusinessDay.location)).filter(BusinessDay.date.between(start_date, end_date))
@@ -98,14 +105,14 @@ def query():
                 db.joinedload(Transaction.business_day).joinedload(BusinessDay.location)
             ).filter(Transaction.business_day_id.in_(business_day_ids)).order_by(Transaction.timestamp).all()
 
-        elif report_type == 'daily_cash_summary':
+        elif report_type in ['daily_cash_summary', 'daily_cash_check']:
             results = query_base.order_by(BusinessDay.date, BusinessDay.location_id).all()
             if results:
                 grand_total_dict = {
                     'opening_cash': sum(r.opening_cash or 0 for r in results), 'total_sales': sum(r.total_sales or 0 for r in results),
                     'expected_cash': sum(r.expected_cash or 0 for r in results), 'closing_cash': sum(r.closing_cash or 0 for r in results),
                     'cash_diff': sum(r.cash_diff or 0 for r in results), 'donation_total': sum(r.donation_total or 0 for r in results),
-                    'other_total': sum(r.other_total or 0 for r in results),
+                    'other_total': sum(r.other_total or 0 for r in results), 'location_notes': ""
                 }
                 grand_total_dict['other_cash'] = grand_total_dict['donation_total'] + grand_total_dict['other_total']
                 class GrandTotal:
@@ -218,11 +225,57 @@ def query():
                            report_type=report_type,
                            grand_total=grand_total,
                            chart_data=json.dumps(chart_data) if chart_data else None,
-                           total_revenue=total_revenue)
+                           total_revenue=total_revenue,
+                           denominations=DENOMINATIONS)
 
+@bp.route('/save_cash_check_data', methods=['POST'])
+@admin_required
+def save_cash_check_data():
+    try:
+        data = request.get_json()
+        
+        for row_data in data:
+            business_day_id = row_data.get('id')
+            business_day = BusinessDay.query.get(business_day_id)
+            if not business_day:
+                continue
+            
+            # 更新基本資料
+            business_day.opening_cash = float(row_data.get('opening_cash', business_day.opening_cash))
+            business_day.donation_total = float(row_data.get('donation_total', business_day.donation_total))
+            business_day.other_total = float(row_data.get('other_total', business_day.other_total))
+            business_day.location_notes = row_data.get('location_notes', business_day.location_notes)
+
+            # 更新現金盤點詳細數據並重新計算 closing_cash
+            cash_breakdown_raw = row_data.get('cash_breakdown')
+            if isinstance(cash_breakdown_raw, dict):
+                # 確保面額數據都是整數
+                cash_breakdown_dict = {}
+                for key, value in cash_breakdown_raw.items():
+                    try:
+                        cash_breakdown_dict[key] = int(value)
+                    except (ValueError, TypeError):
+                        cash_breakdown_dict[key] = 0
+                
+                business_day.cash_breakdown = json.dumps(cash_breakdown_dict)
+                
+                # 根據新輸入的面額數量重新計算 closing_cash
+                closing_cash = sum(int(denom) * count for denom, count in cash_breakdown_dict.items())
+                business_day.closing_cash = float(closing_cash)
+            
+            # 重新計算 expected_cash 和 cash_diff
+            business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+            business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
+
+        db.session.commit()
+        flash('報表數據已成功儲存！', 'success')
+        return jsonify({'success': True, 'message': '資料已成功更新。'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'更新失敗: {str(e)}'}), 500
 
 @bp.route('/export_csv')
-@login_required
+@admin_required
 def export_csv():
     report_type = request.args.get('report_type')
     location_id = request.args.get('location_id')
@@ -251,15 +304,15 @@ def export_csv():
         for day in results:
             results_to_write.append([day.date.strftime('%Y-%m-%d'), day.location.name, day.opening_cash, day.total_sales, day.expected_cash, day.closing_cash, day.cash_diff, day.total_transactions, day.total_items])
     
-    elif report_type == 'daily_cash_summary':
-        header = ['日期', '據點', '開店現金', '手帳營收', '應有現金', '實有現金', '溢短收', '捐款', '其他收入', '其他現金(總)']
+    elif report_type in ['daily_cash_summary', 'daily_cash_check']:
+        header = ['日期', '據點', '開店現金', '手帳營收', '應有現金', '實有現金', '溢短收', '捐款', '其他收入', '其他現金(總)', '備註']
         query = db.session.query(BusinessDay).filter(BusinessDay.date.between(start_date, end_date))
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
         results = query.order_by(BusinessDay.date, BusinessDay.location_id).all()
         for day in results:
             results_to_write.append([
                 day.date.strftime('%Y-%m-%d'), day.location.name, day.opening_cash, day.total_sales, day.expected_cash,
-                day.closing_cash, day.cash_diff, day.donation_total, day.other_total, (day.donation_total or 0) + (day.other_total or 0)
+                day.closing_cash, day.cash_diff, day.donation_total, day.other_total, (day.donation_total or 0) + (day.other_total or 0), day.location_notes
             ])
 
     elif report_type == 'transaction_log':
@@ -280,13 +333,19 @@ def export_csv():
         header = ['類別名稱', '銷售數量', '銷售總額']
         query = db.session.query(Category.name, func.count(case((TransactionItem.price > 0, TransactionItem.id), else_=None)), func.sum(case((TransactionItem.price > 0, TransactionItem.price), else_=0))).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(BusinessDay.date.between(start_date, end_date), Category.category_type == 'product')
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
-        results_to_write = query.group_by(Category.name).order_by(func.sum(TransactionItem.price).desc()).all()
-    
+        results = query.group_by(Category.name).order_by(func.sum(TransactionItem.price).desc()).all()
+        total_revenue = sum(r.total_sales for r in results) if results else 0
+        chart_data = {
+            'labels': [r.category_name for r in results],
+            'datasets': [{'label': '銷售總額', 'data': [r.total_sales for r in results]}]
+        }
+
     elif report_type == 'sales_trend':
         header = ['日期', '總銷售額', '總交易筆數']
-        query = db.session.query(BusinessDay.date, func.sum(BusinessDay.total_sales), func.sum(BusinessDay.total_transactions)).filter(BusinessDay.date.between(start_date, end_date))
+        query = db.session.query(BusinessDay.date, func.sum(BusinessDay.total_sales).label('total_sales'), func.sum(BusinessDay.total_transactions).label('total_transactions')).filter(BusinessDay.date.between(start_date, end_date))
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
-        results_to_write = query.group_by(BusinessDay.date).order_by(BusinessDay.date).all()
+        results = query.group_by(BusinessDay.date).order_by(BusinessDay.date).all()
+        results_to_write = [[r.date.strftime('%Y-%m-%d'), r.total_sales, r.total_transactions] for r in results]
 
     elif report_type == 'peak_hours':
         header = ['時段', '交易筆數', '銷售總額']
@@ -296,7 +355,7 @@ def export_csv():
         results_to_write = [(f"{r[0]}:00 - {int(r[0])+1}:00", r[1], r[2]) for r in query_results]
 
     elif report_type == 'periodic_performance':
-        header = ['時間單位', '期間 A 銷售額', '期間 A 交易數', '期間 B 銷售額', '期間 B 交易數', '銷售額差異', '銷售額差異 (%)']
+        header = ['時間單位', '期間 A 銷售額', '期間 A 交易數', '期間 B 銷售額', '期間 B 交易數', '銷售額差異', '增長率']
         def get_period_data_csv(start, end, unit):
             time_unit_expressions = {'year': [extract('year', BusinessDay.date)], 'quarter': [extract('year', BusinessDay.date), case((extract('month', BusinessDay.date) <= 3, 1), (extract('month', BusinessDay.date) <= 6, 2), (extract('month', BusinessDay.date) <= 9, 3), else_=4)], 'month': [extract('year', BusinessDay.date), extract('month', BusinessDay.date)]}
             query = db.session.query(*time_unit_expressions[unit], func.sum(BusinessDay.total_sales).label('total_sales'), func.sum(BusinessDay.total_transactions).label('total_transactions')).filter(BusinessDay.date.between(start, end))
