@@ -33,9 +33,9 @@
     /* 內框：只負責容納 Canvas */
     .chart-container {
         position: relative;
-        width: 100%;
         height: 100%;
-        max-width: 900px;
+        max-width: 900px; /* 預設的 16:9 寬度 */
+        width: 100%;
     }
     
     .form-row-container {
@@ -116,13 +116,13 @@
     /* 統一設定所有報表第一欄 (時間/日期) 的寬度 */
     .table-responsive table thead th:nth-child(1),
     .table-responsive table tbody td:nth-child(1) {
-        width: 130px; 
+        width: 200px;
     }
     
     /* 統一設定所有報表第二欄 (據點) 的寬度 */
     .table-responsive table thead th:nth-child(2),
     .table-responsive table tbody td:nth-child(2) {
-        width: 100px; 
+        width: 100px;
     }
     
     /* 為「各據點現金盤點」報表特別調整 */
@@ -594,45 +594,65 @@ document.addEventListener('DOMContentLoaded', function() {
     const chartDataJson = '{{ chart_data | safe or "{}" }}';
     if(chartDataJson && chartDataJson !== '{}') {
         const chartData = JSON.parse(chartDataJson);
+        const chartWrapper = document.querySelector('.chart-wrapper');
+        const chartContainer = document.querySelector('.chart-container');
         const ctx = document.getElementById('myChart');
+
+        // 初始化時，根據 chartWrapper 的高度來計算 4:3 和 16:9 的寬度
+        const wrapperHeight = chartWrapper.clientHeight;
+        const width_16_9 = wrapperHeight * (16 / 9);
+        const width_4_3 = wrapperHeight * (4 / 3);
+
         if (ctx && chartData && chartData.labels && chartData.labels.length > 0) {
             const reportType = '{{ report_type }}';
             let defaultType = 'bar';
             if (reportType === 'sales_trend') defaultType = 'line';
             if (reportType === 'product_mix' || reportType === 'daily_cash_summary') defaultType = 'pie';
             
+            // 修正點 1：固定 maintainAspectRatio 為 false，並在 CSS 中設定高度
             const config = { 
                 type: defaultType, 
                 data: chartData, 
                 options: { 
                     responsive: true, 
-                    maintainAspectRatio: (defaultType !== 'pie'),
-                    aspectRatio: 16/9,
+                    maintainAspectRatio: false, // 修正點 1
                     scales: { y: { beginAtZero: true, display: (defaultType !== 'pie') }, y1: { beginAtZero: true, display: false, position: 'right' } }, 
                     plugins: { title: { display: true, text: document.querySelector('#reportTypeSelect option:checked').text }, legend: { position: 'top' } } 
                 } 
             };
             if (reportType === 'sales_trend') { config.options.scales.y1.display = true; }
+            
             const myChart = new Chart(ctx, config);
 
+            // 初始化時設定預設寬度
+            chartContainer.style.maxWidth = `${width_16_9}px`;
+            
+            // 處理圖表類型切換
             document.querySelectorAll('.chart-type-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const type = this.dataset.type;
                     myChart.config.type = type;
                     const isPie = (type === 'pie');
-                    myChart.options.maintainAspectRatio = !isPie;
                     myChart.options.scales.y.display = !isPie;
                     if (myChart.options.scales.y1) myChart.options.scales.y1.display = !isPie && (reportType === 'sales_trend');
+                    
                     myChart.update();
                 });
             });
 
+            // 處理比例切換 (修正點 2：手動控制容器寬度)
             document.querySelectorAll('.ratio-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
                     this.classList.add('active');
-                    myChart.options.aspectRatio = (this.dataset.ratio === '16/9') ? 16/9 : 4/3;
-                    myChart.resize();
+                    const selectedRatio = this.dataset.ratio;
+                    
+                    if (selectedRatio === '16/9') {
+                        chartContainer.style.maxWidth = `${width_16_9}px`;
+                    } else if (selectedRatio === '4/3') {
+                        chartContainer.style.maxWidth = `${width_4_3}px`;
+                    }
+                    // 不需要手動調用 myChart.resize()，因為變更容器寬度會觸發自動響應
                 });
             });
             
