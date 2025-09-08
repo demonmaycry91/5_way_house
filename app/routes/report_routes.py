@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, flash, redirect, url_for,
 from flask_login import login_required, current_user
 from ..models import BusinessDay, Transaction, TransactionItem, Location, DailySettlement, Category
 from ..forms import ReportQueryForm, SettlementForm
-from .. import db
+from .. import db, csrf
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func, case, extract
 from datetime import date, timedelta, datetime
@@ -228,7 +228,95 @@ def query():
                            total_revenue=total_revenue,
                            denominations=DENOMINATIONS)
 
+# 新增路由: 儲存每日摘要數據
+@bp.route('/save_daily_summary_data', methods=['POST'])
+@csrf.exempt
+@admin_required
+def save_daily_summary_data():
+    try:
+        data = request.get_json()
+        for row_data in data:
+            business_day = BusinessDay.query.get(row_data.get('id'))
+            if not business_day:
+                continue
+
+            business_day.opening_cash = float(row_data.get('opening_cash', business_day.opening_cash))
+            # 重新計算帳面總額與帳差
+            business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+            business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': '每日摘要數據已成功更新。'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# 新增路由: 儲存各據點當日結算數據
+@bp.route('/save_daily_cash_summary_data', methods=['POST'])
+@csrf.exempt
+@admin_required
+def save_daily_cash_summary_data():
+    try:
+        data = request.get_json()
+        for row_data in data:
+            business_day = BusinessDay.query.get(row_data.get('id'))
+            if not business_day:
+                continue
+
+            business_day.donation_total = float(row_data.get('donation_total', business_day.donation_total))
+            business_day.other_total = float(row_data.get('other_total', business_day.other_total))
+            
+        db.session.commit()
+        return jsonify({'success': True, 'message': '當日結算數據已成功更新。'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+        
+# 新增路由: 儲存交易細節數據
+@bp.route('/save_transaction_log_data', methods=['POST'])
+@csrf.exempt
+@admin_required
+def save_transaction_log_data():
+    try:
+        data = request.get_json()
+        for transaction_data in data:
+            transaction = Transaction.query.get(transaction_data.get('id'))
+            if not transaction:
+                continue
+
+            # 更新實收現金
+            transaction.cash_received = float(transaction_data.get('cash_received', transaction.cash_received))
+
+            # 更新每個交易品項
+            for item_data in transaction_data.get('items', []):
+                item = TransactionItem.query.get(item_data.get('id'))
+                if item:
+                    item.price = float(item_data.get('price', item.price))
+
+            # 重新計算交易總額
+            new_transaction_amount = sum(item.price for item in transaction.items)
+            transaction.amount = new_transaction_amount
+            
+            # 重新計算找零金額
+            transaction.change_given = (transaction.cash_received or 0) - (transaction.amount or 0)
+
+            # 更新所屬營業日的總計數據
+            business_day = transaction.business_day
+            if business_day:
+                all_transactions_for_day = BusinessDay.query.get(business_day.id).transactions
+                business_day.total_sales = sum(t.amount or 0 for t in all_transactions_for_day)
+                business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+                business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
+                
+        db.session.commit()
+        return jsonify({'success': True, 'message': '交易細節數據已成功更新。'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# 調整現有路由: 儲存現金盤點數據
 @bp.route('/save_cash_check_data', methods=['POST'])
+@csrf.exempt
 @admin_required
 def save_cash_check_data():
     try:
@@ -240,23 +328,11 @@ def save_cash_check_data():
             if not business_day:
                 continue
             
-            # 更新基本資料
-            business_day.opening_cash = float(row_data.get('opening_cash', business_day.opening_cash))
-            business_day.donation_total = float(row_data.get('donation_total', business_day.donation_total))
-            business_day.other_total = float(row_data.get('other_total', business_day.other_total))
-            business_day.location_notes = row_data.get('location_notes', business_day.location_notes)
-
             # 更新現金盤點詳細數據並重新計算 closing_cash
             cash_breakdown_raw = row_data.get('cash_breakdown')
             if isinstance(cash_breakdown_raw, dict):
                 # 確保面額數據都是整數
-                cash_breakdown_dict = {}
-                for key, value in cash_breakdown_raw.items():
-                    try:
-                        cash_breakdown_dict[key] = int(value)
-                    except (ValueError, TypeError):
-                        cash_breakdown_dict[key] = 0
-                
+                cash_breakdown_dict = {key: int(value) for key, value in cash_breakdown_raw.items()}
                 business_day.cash_breakdown = json.dumps(cash_breakdown_dict)
                 
                 # 根據新輸入的面額數量重新計算 closing_cash
@@ -316,7 +392,7 @@ def export_csv():
             ])
 
     elif report_type == 'transaction_log':
-        header = ['時間', '據點', '項目/折扣', '類型', '單價/折扣額', '收到現金', '交易總額']
+        header = ['時間', '據點', '項目/折扣', '類型', '單價/折扣額', '收到現金', '交易總額', '找零']
         query_base = db.session.query(BusinessDay).filter(BusinessDay.date.between(start_date, end_date))
         if location_id != 'all': query_base = query_base.filter(BusinessDay.location_id == location_id)
         business_day_ids = [b.id for b in query_base.all()]
@@ -326,7 +402,7 @@ def export_csv():
                 results_to_write.append([
                     trans.timestamp.strftime('%Y-%m-%d %H:%M:%S'), trans.business_day.location.name,
                     item.category.name if item.category else '手動輸入', '商品' if item.price > 0 else '折扣',
-                    item.price, trans.cash_received, trans.amount
+                    item.price, trans.cash_received, trans.amount, trans.change_given
                 ])
 
     elif report_type == 'product_mix':
