@@ -69,21 +69,6 @@
         box-sizing: border-box;
     }
     
-    /* 調整表格欄位寬度，確保排版穩定 */
-    #cash-check-table th, #cash-check-table td {
-        white-space: nowrap;
-        vertical-align: middle;
-    }
-    #cash-check-table th:nth-child(1), #cash-check-table td:nth-child(1) { min-width: 100px; } /* 日期 */
-    #cash-check-table th:nth-child(2), #cash-check-table td:nth-child(2) { min-width: 80px; }  /* 據點 */
-    #cash-check-table th:nth-child(3), #cash-check-table td:nth-child(3),
-    #cash-check-table th:nth-child(4), #cash-check-table td:nth-child(4),
-    #cash-check-table th:nth-child(5), #cash-check-table td:nth-child(5),
-    #cash-check-table th:nth-child(6), #cash-check-table td:nth-child(6),
-    #cash-check-table th:nth-child(7), #cash-check-table td:nth-child(7),
-    #cash-check-table th:nth-child(16), #cash-check-table td:nth-child(16),
-    #cash-check-table th:nth-child(17), #cash-check-table td:nth-child(17) { min-width: 80px; } /* 金額欄位 */
-    
     /* 隱藏預設的顯示文字 */
     .editable-cell .display-value, .cash-breakdown-cell .display-value {
         display: none;
@@ -120,6 +105,37 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         border-radius: 5px;
     }
+
+    /* --- ↓↓↓ 修正後的樣式規則 ↓↓↓ --- */
+    /* 統一所有表格的文字不換行，避免排版破壞 */
+    .table-responsive table th,
+    .table-responsive table td {
+        white-space: nowrap;
+    }
+
+    /* 統一設定所有報表第一欄 (時間/日期) 的寬度 */
+    .table-responsive table thead th:nth-child(1),
+    .table-responsive table tbody td:nth-child(1) {
+        width: 130px; 
+    }
+    
+    /* 統一設定所有報表第二欄 (據點) 的寬度 */
+    .table-responsive table thead th:nth-child(2),
+    .table-responsive table tbody td:nth-child(2) {
+        width: 100px; 
+    }
+    
+    /* 為「各據點現金盤點」報表特別調整 */
+    #cash-check-table {
+        /* 設定表格為固定佈局，以便平均分配剩餘寬度 */
+        table-layout: fixed;
+    }
+    /* 設定「總計」欄的寬度 */
+    #cash-check-table th:nth-child(3),
+    #cash-check-table td:nth-child(3) {
+        width: 100px;
+    }
+    /* 其他貨幣面額欄位（第4欄以後）將會自動均勻分配剩餘寬度 */
 </style>
 {% endblock %}
 
@@ -265,9 +281,9 @@
                 <table class="table table-striped table-hover" id="cash-check-table">
                     <thead>
                         <tr>
-                            <th style="width: 10%;">日期</th>
-                            <th style="width: 10%;">據點</th>
-                            <th style="width: 10%;" class="text-end">總計</th>
+                            <th>日期</th>
+                            <th>據點</th>
+                            <th class="text-end">總計</th>
                             {% for denom in denominations %}
                                 <th class="text-end">{{ denom }}</th>
                             {% endfor %}
@@ -340,8 +356,6 @@
                                 {% if day_check.cash_check_diff == 0 %} 相符 {% else %} ${{ "{:,.0f}".format(day_check.cash_check_diff) }} {% endif %}
                             </td>
                         </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="text-center text-muted">查無核對資料</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

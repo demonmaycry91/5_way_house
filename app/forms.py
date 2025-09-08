@@ -68,7 +68,7 @@ class ReportQueryForm(FlaskForm):
     report_type = SelectField('報表類型', choices=[
         ('daily_summary', '各據點每日報表'),
         ('daily_cash_summary', '各據點當日結算'),
-        ('daily_cash_check', '現金盤點'),
+        ('daily_cash_check', '各據點現金盤點'),
         ('transaction_log', '各據點交易細節'),
         ('combined_summary_final', '合併報表總結 (現金核對)'),
         ('product_mix', '產品類別銷售分析'),

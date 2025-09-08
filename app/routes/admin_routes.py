@@ -5,6 +5,7 @@ from .. import db
 from ..forms import LocationForm, RoleForm, UserForm, CategoryForm
 from ..decorators import admin_required
 import json
+from .. import db, csrf # 新增 csrf
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -56,6 +57,7 @@ def delete_location(location_id):
 
 # --- 商品類別管理 ---
 @bp.route('/locations/<int:location_id>/categories', methods=['GET', 'POST'])
+@csrf.exempt # 新增此行以豁免 CSRF 保護
 def list_categories(location_id):
     location = Location.query.get_or_404(location_id)
     product_categories_query = Category.query.filter_by(location_id=location.id, category_type='product').all()
