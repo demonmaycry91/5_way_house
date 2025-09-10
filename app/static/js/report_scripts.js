@@ -6,10 +6,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveBtn = document.querySelector('.save-button');
     const cancelBtn = document.querySelector('.cancel-button');
     const reportType = reportTableContainer.dataset.reportType;
-
-    const all_categories_data_element = document.getElementById('all-categories-data');
-    const all_categories = all_categories_data_element ? JSON.parse(all_categories_data_element.textContent) : [];
-
+    
+    // 獲取所有類別資料，用於交易細節編輯
+    const all_categories_json = document.querySelector('script[type="application/json"]#all-categories-data');
+    const all_categories = all_categories_json ? JSON.parse(all_categories_json.textContent) : [];
+    
+    // 預先建立一個類別 ID 到類型名稱的映射，方便快速查詢
+    const categoryTypeMap = all_categories.reduce((map, c) => {
+        map[c.id] = c.category_type;
+        return map;
+    }, {});
+    
     function getCleanNumber(str) {
         if (typeof str !== 'string') return str || 0;
         return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
@@ -86,7 +93,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const dataRowClosingCash = getCleanNumber(dataRow.querySelector('.closing_cash_display').innerText);
                 grandClosingCash += dataRowClosingCash;
             });
-            grandTotalRow.querySelector('.grand-total-closing-cash').innerText = `NT$ ${formatAsNumber(grandClosingCash)}`;
+            // 修正：更新總計欄位
+            const grandTotalClosingCashCell = grandTotalRow.querySelector('td.closing_cash_display');
+            if (grandTotalClosingCashCell) {
+                grandTotalClosingCashCell.innerText = `NT$ ${formatAsNumber(grandClosingCash)}`;
+            }
+            
             reportTableContainer.querySelectorAll('.cash-breakdown-input').forEach(input => {
                 const denom = input.dataset.denom;
                 let denomTotal = 0;
@@ -119,21 +131,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 const rowId = row.dataset.id;
                 
                 if (!originalData[rowId]) {
-                    originalData[rowId] = { id: rowId, items: {} };
+                    originalData[rowId] = { id: rowId, items: [] };
                 }
 
                 if (reportType === 'transaction_log') {
                     const cashReceivedElement = row.querySelector('[data-field="cash_received"] .display-value');
+                    const changeGivenElement = row.querySelector('[data-field="change_given"] .display-value');
                     if (cashReceivedElement) {
                         originalData[rowId].cash_received = getCleanNumber(cashReceivedElement.innerText);
                     }
-                    const itemPriceCell = row.querySelector('[data-field="item_price"]');
-                    if (itemPriceCell) {
+                    if (changeGivenElement) {
+                        originalData[rowId].change_given = getCleanNumber(changeGivenElement.innerText);
+                    }
+                    
+                    const itemPriceCell = row.querySelector('[data-item-id]');
+                    const categoryCell = row.querySelector('[data-field="category"]');
+                    if (itemPriceCell && categoryCell) {
                         const itemId = itemPriceCell.dataset.itemId;
-                        originalData[rowId].items[itemId] = {
+                        const categoryId = categoryCell.dataset.categoryId;
+                        originalData[rowId].items.push({
+                            id: itemId,
                             price: getCleanNumber(itemPriceCell.querySelector('.display-value').innerText),
-                            category_id: row.querySelector('[data-field="category"]').dataset.categoryId
-                        };
+                            category_id: categoryId
+                        });
                     }
                 } else if (reportType === 'daily_summary') {
                     const openingCashCell = row.querySelector('[data-field="opening_cash"]');
@@ -180,18 +200,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (reportType === 'transaction_log') {
                     const cashReceivedCell = row.querySelector('[data-field="cash_received"]');
+                    const changeGivenCell = row.querySelector('[data-field="change_given"]');
+                    
                     if (cashReceivedCell) {
                         const input = cashReceivedCell.querySelector('.editable-input');
                         const span = cashReceivedCell.querySelector('.display-value');
                         input.value = originalTransactionData.cash_received;
                         span.innerText = formatAsCurrency(originalTransactionData.cash_received);
                     }
+                    if (changeGivenCell) {
+                         changeGivenCell.innerText = formatAsCurrency(originalTransactionData.change_given);
+                    }
 
-                    const itemPriceCell = row.querySelector('[data-field="item_price"]');
+                    const itemPriceCell = row.querySelector('[data-item-id]');
                     const categoryCell = row.querySelector('[data-field="category"]');
                     if (itemPriceCell && categoryCell) {
                         const itemId = itemPriceCell.dataset.itemId;
-                        const originalItemData = originalTransactionData.items[itemId];
+                        const originalItemData = originalTransactionData.items.find(item => item.id == itemId);
                         if (originalItemData) {
                             const priceInput = itemPriceCell.querySelector('.editable-input');
                             const priceSpan = itemPriceCell.querySelector('.display-value');
@@ -201,7 +226,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             const categorySelect = categoryCell.querySelector('.editable-select');
                             const categorySpan = categoryCell.querySelector('.display-value');
                             categorySelect.value = originalItemData.category_id;
-                            categorySpan.innerText = categorySelect.options[categorySelect.selectedIndex].text;
+                            const categoryName = all_categories.find(c => c.id == originalItemData.category_id)?.name || '手動輸入';
+                            categorySpan.innerText = categoryName;
+                            categoryCell.dataset.categoryId = originalItemData.category_id;
+
+                            const itemTypeCell = categoryCell.closest('tr').querySelector('td:nth-child(4) .badge');
+                            const itemType = categoryTypeMap[originalItemData.category_id];
+                            if (itemTypeCell && itemType) {
+                                if (itemType.includes('discount')) {
+                                    itemTypeCell.classList.remove('bg-success');
+                                    itemTypeCell.classList.add('bg-danger');
+                                    itemTypeCell.innerText = '折扣';
+                                } else {
+                                    itemTypeCell.classList.remove('bg-danger');
+                                    itemTypeCell.classList.add('bg-success');
+                                    itemTypeCell.innerText = '商品';
+                                }
+                            }
                         }
                     }
                 } else if (reportType === 'daily_summary') {
@@ -272,10 +313,11 @@ document.addEventListener('DOMContentLoaded', function() {
                      }
                      
                      const itemCell = row.querySelector('[data-item-id]');
+                     const categoryCell = row.querySelector('[data-field="category"]');
                      if (itemCell) {
                          const itemId = itemCell.dataset.itemId;
                          const priceInput = itemCell.querySelector('.editable-input');
-                         const categorySelect = row.querySelector('[data-field="category"] .editable-select');
+                         const categorySelect = categoryCell.querySelector('.editable-select');
                          updatedData[rowId].items.push({
                              id: itemId,
                              price: getCleanNumber(priceInput.value),
@@ -323,9 +365,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const select = event.target;
         if (select.classList.contains('editable-select')) {
             const displayValueSpan = select.closest('.editable-cell').querySelector('.display-value');
+            const newCategoryId = select.value;
             displayValueSpan.innerText = select.options[select.selectedIndex].text;
-            select.closest('.editable-cell').dataset.categoryId = select.value;
+            select.closest('.editable-cell').dataset.categoryId = newCategoryId;
             
+            const itemTypeCell = select.closest('tr').querySelector('td:nth-child(4) .badge');
+            const itemType = categoryTypeMap[newCategoryId];
+
+            if (itemTypeCell && itemType) {
+                if (itemType.includes('discount')) {
+                    itemTypeCell.classList.remove('bg-success');
+                    itemTypeCell.classList.add('bg-danger');
+                    itemTypeCell.innerText = '折扣';
+                } else {
+                    itemTypeCell.classList.remove('bg-danger');
+                    itemTypeCell.classList.add('bg-success');
+                    itemTypeCell.innerText = '商品';
+                }
+            }
+
             const row = select.closest('tr');
             if (reportType === 'transaction_log') {
                  updateTransactionLogRow(row);
