@@ -483,18 +483,22 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     
     async function handleCheckout(paidAmount = null) {
-        const amountPaid = paidAmount ?? parseFloat(currentInput);
-        if (isNaN(amountPaid) || amountPaid < finalTotalForPayment) {
-            return updateDisplay(`金額不足，應收: ${finalTotalForPayment.toLocaleString('en-US')}`);
-        }
-        await sendTransactionToServer();
-        const change = amountPaid - finalTotalForPayment;
-        currentInput = amountPaid.toString();
-        updateDisplay(`找零: ${change.toLocaleString('en-US')}`);
-        updateReceiptForCheckout(amountPaid, finalTotalForPayment);
-        
-        isTransactionComplete = true;
+    const amountPaid = paidAmount ?? parseFloat(currentInput);
+    if (isNaN(amountPaid) || amountPaid < finalTotalForPayment) {
+        return updateDisplay(`金額不足，應收: ${finalTotalForPayment.toLocaleString('en-US')}`);
     }
+
+    // --- ↓↓↓ 修正點：在這裡呼叫 sendTransactionToServer 時傳入 paidAmount 和 change ↓↓↓ ---
+    const change = amountPaid - finalTotalForPayment;
+    await sendTransactionToServer(amountPaid, change);
+    // --- ↑↑↑ 修正結束 ↑↑↑ ---
+
+    currentInput = amountPaid.toString();
+    updateDisplay(`找零: ${change.toLocaleString('en-US')}`);
+    updateReceiptForCheckout(amountPaid, finalTotalForPayment);
+
+    isTransactionComplete = true;
+}
     
     function updateReceipt(promptText = null) {
         receiptDetails.className = '';
@@ -578,27 +582,34 @@ document.addEventListener("DOMContentLoaded", function () {
     // =================================================================
     // SECTION 5: 伺服器通訊
     // =================================================================
-    async function sendTransactionToServer() {
-        const expandedItems = [];
-        transactionItems.forEach(item => {
-            for (let i = 0; i < item.quantity; i++) {
-                expandedItems.push({ price: item.unitPrice, category_id: item.category_id, category_type: item.category_type });
-            }
+    async function sendTransactionToServer(paidAmount, changeReceived) {
+    const expandedItems = [];
+    transactionItems.forEach(item => {
+        for (let i = 0; i < item.quantity; i++) {
+            expandedItems.push({ price: item.unitPrice, category_id: item.category_id, category_type: item.category_type });
+        }
+    });
+    try {
+        const response = await fetch("/cashier/record_transaction", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            // --- ↓↓↓ 修正點：在 body 中新增 cash_received 和 change_given ↓↓↓ ---
+            body: JSON.stringify({ 
+                location_slug: POS_LOCATION_SLUG, 
+                items: expandedItems,
+                cash_received: paidAmount, // 新增
+                change_given: changeReceived // 新增
+            }),
+            // --- ↑↑↑ 修正結束 ↑↑↑ ---
         });
-        try {
-            const response = await fetch("/cashier/record_transaction", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ location_slug: POS_LOCATION_SLUG, items: expandedItems }),
-            });
-            if (!response.ok) throw new Error("網路回應不正確");
-            const result = await response.json();
-            if (result.success) {
-                document.getElementById("total-sales").innerText = `$ ${Math.round(result.total_sales).toLocaleString()}`;
-                document.getElementById("total-transactions").innerText = result.total_transactions;
-                document.getElementById("total-items").innerText = result.total_items;
-            } else { updateDisplay(`傳送失敗: ${result.error}`); }
-        } catch (error) { console.error("結帳時發生錯誤:", error); updateDisplay("傳送失敗"); }
-    }
+        if (!response.ok) throw new Error("網路回應不正確");
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById("total-sales").innerText = `$ ${Math.round(result.total_sales).toLocaleString()}`;
+            document.getElementById("total-transactions").innerText = result.total_transactions;
+            document.getElementById("total-items").innerText = result.total_items;
+        } else { updateDisplay(`傳送失敗: ${result.error}`); }
+    } catch (error) { console.error("結帳時發生錯誤:", error); updateDisplay("傳送失敗"); }
+}
     
     async function sendOtherIncomeToServer(amount, type) {
         try {

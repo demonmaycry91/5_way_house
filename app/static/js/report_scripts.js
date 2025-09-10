@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelBtn = document.querySelector('.cancel-button');
     const reportType = reportTableContainer.dataset.reportType;
 
-    // 將所有數字格式化為不帶逗號的字串，以便進行計算
+    const all_categories_data_element = document.getElementById('all-categories-data');
+    const all_categories = all_categories_data_element ? JSON.parse(all_categories_data_element.textContent) : [];
+
     function getCleanNumber(str) {
         if (typeof str !== 'string') return str || 0;
         return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
@@ -27,53 +29,45 @@ document.addEventListener('DOMContentLoaded', function() {
         return parseFloat(text) || 0;
     }
 
-    // 更新 daily_summary 的計算欄位
     function updateDailySummaryRow(row) {
         const openingCash = getCleanNumber(row.querySelector('[data-field="opening_cash"] .editable-input').value);
         const totalSales = getNumericValue(row.querySelector('[data-field="total_sales"]'));
         const closingCash = getNumericValue(row.querySelector('[data-field="closing_cash"]'));
-
         const expectedCash = openingCash + totalSales;
         const cashDiff = closingCash - expectedCash;
-
         row.querySelector('[data-field="expected_cash"]').innerText = formatAsCurrency(expectedCash);
         row.querySelector('[data-field="cash_diff"]').innerText = formatAsCurrency(cashDiff);
-        
-        // 更新帳差顏色
         const cashDiffCell = row.querySelector('[data-field="cash_diff"]');
         cashDiffCell.classList.toggle('text-danger', cashDiff < 0);
     }
     
-    // 更新 daily_cash_summary 的計算欄位
     function updateDailyCashSummaryRow(row) {
-        const donationTotal = getCleanNumber(row.querySelector('[data-field="donation_total"] .editable-input').value);
-        const otherTotal = getCleanNumber(row.querySelector('[data-field="other_total"] .editable-input').value);
-        const otherCashCell = row.querySelector('[data-field="other_cash"]');
-        
-        const totalOtherCash = donationTotal + otherTotal;
-        otherCashCell.innerText = `NT$ ${formatAsNumber(totalOtherCash)}`;
+        // 這兩個欄位現在是唯讀，所以無需更新
     }
     
-    // 更新 transaction_log 的計算欄位
     function updateTransactionLogRow(row) {
-        const itemPriceInputs = row.querySelectorAll('[data-item-id] .editable-input');
-        const transactionAmountCell = row.querySelector('[data-field="amount"]');
-        const cashReceivedInput = row.querySelector('[data-field="cash_received"] .editable-input');
-        const changeGivenCell = row.querySelector('[data-field="change_given"]');
-
+        const transactionRows = reportTableContainer.querySelectorAll(`tr[data-id="${row.dataset.id}"]`);
         let newTransactionAmount = 0;
-        itemPriceInputs.forEach(input => {
-            newTransactionAmount += getCleanNumber(input.value);
+        transactionRows.forEach(transRow => {
+            const itemPriceInput = transRow.querySelector('[data-item-id] .editable-input');
+            if (itemPriceInput) {
+                newTransactionAmount += getCleanNumber(itemPriceInput.value);
+            }
         });
-
-        transactionAmountCell.innerText = formatAsCurrency(newTransactionAmount);
-        
+        const transactionAmountCell = row.querySelector('[data-field="amount"]');
+        if (transactionAmountCell) {
+            transactionAmountCell.innerText = formatAsCurrency(newTransactionAmount);
+        }
+        const firstRowOfTransaction = transactionRows[0];
+        const cashReceivedInput = firstRowOfTransaction.querySelector('[data-field="cash_received"] .editable-input');
+        const changeGivenCell = firstRowOfTransaction.querySelector('[data-field="change_given"]');
         const cashReceived = getCleanNumber(cashReceivedInput.value);
         const changeGiven = cashReceived - newTransactionAmount;
-        changeGivenCell.innerText = formatAsCurrency(changeGiven);
+        if (changeGivenCell) {
+             changeGivenCell.innerText = formatAsCurrency(changeGiven);
+        }
     }
 
-    // 更新 daily_cash_check 的計算欄位
     function updateDailyCashCheckRow(row) {
         let closingCash = 0;
         row.querySelectorAll('.cash-breakdown-input').forEach(input => {
@@ -85,8 +79,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (closingCashDisplay) {
             closingCashDisplay.innerText = `NT$ ${formatAsNumber(closingCash)}`;
         }
-        
-        // 更新總計行
         const grandTotalRow = document.querySelector('.fw-bold.table-secondary');
         if (grandTotalRow) {
             let grandClosingCash = 0;
@@ -95,7 +87,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 grandClosingCash += dataRowClosingCash;
             });
             grandTotalRow.querySelector('.grand-total-closing-cash').innerText = `NT$ ${formatAsNumber(grandClosingCash)}`;
-            
             reportTableContainer.querySelectorAll('.cash-breakdown-input').forEach(input => {
                 const denom = input.dataset.denom;
                 let denomTotal = 0;
@@ -111,87 +102,130 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function toggleEditMode(isEditing) {
-        reportTableContainer.classList.toggle('editing', isEditing);
-        if (isEditing) {
-            editBtn.style.display = 'none';
-            saveBtn.style.display = 'inline-block';
-            cancelBtn.style.display = 'inline-block';
-        } else {
-            editBtn.style.display = 'inline-block';
-            saveBtn.style.display = 'none';
-            cancelBtn.style.display = 'none';
+        const isEditableReport = (reportType === 'daily_summary' || reportType === 'daily_cash_check' || reportType === 'transaction_log');
+        editBtn.style.display = isEditableReport && !isEditing ? 'inline-block' : 'none';
+        saveBtn.style.display = isEditing ? 'inline-block' : 'none';
+        cancelBtn.style.display = isEditing ? 'inline-block' : 'none';
+        
+        if (reportTableContainer) {
+            reportTableContainer.classList.toggle('editing', isEditing);
         }
     }
 
-    // 點擊「編輯」按鈕
     if (editBtn) {
         editBtn.addEventListener('click', () => {
             const originalData = {};
             reportTableContainer.querySelectorAll('tr[data-id]').forEach(row => {
                 const rowId = row.dataset.id;
-                originalData[rowId] = {};
-                row.querySelectorAll('.editable-cell').forEach(cell => {
-                    const field = cell.dataset.field;
-                    const displayValueElement = cell.querySelector('.display-value');
-                    const inputValueElement = cell.querySelector('.editable-input');
-                    const rawValue = getCleanNumber(displayValueElement.innerText);
-                    
-                    if (field) {
-                        if (cell.classList.contains('cash-breakdown-cell')) {
-                            const denom = inputValueElement.dataset.denom;
-                            if (!originalData[rowId].cash_breakdown) originalData[rowId].cash_breakdown = {};
-                            originalData[rowId].cash_breakdown[denom] = rawValue;
-                        } else {
-                            originalData[rowId][field] = rawValue;
-                        }
-                        inputValueElement.value = rawValue;
-                    } else if (cell.dataset.itemId) { // For transaction_log
-                         const itemId = cell.dataset.itemId;
-                         if (!originalData[rowId].items) originalData[rowId].items = {};
-                         originalData[rowId].items[itemId] = rawValue;
-                         inputValueElement.value = rawValue;
+                
+                if (!originalData[rowId]) {
+                    originalData[rowId] = { id: rowId, items: {} };
+                }
+
+                if (reportType === 'transaction_log') {
+                    const cashReceivedElement = row.querySelector('[data-field="cash_received"] .display-value');
+                    if (cashReceivedElement) {
+                        originalData[rowId].cash_received = getCleanNumber(cashReceivedElement.innerText);
                     }
-                });
+                    const itemPriceCell = row.querySelector('[data-field="item_price"]');
+                    if (itemPriceCell) {
+                        const itemId = itemPriceCell.dataset.itemId;
+                        originalData[rowId].items[itemId] = {
+                            price: getCleanNumber(itemPriceCell.querySelector('.display-value').innerText),
+                            category_id: row.querySelector('[data-field="category"]').dataset.categoryId
+                        };
+                    }
+                } else if (reportType === 'daily_summary') {
+                    const openingCashCell = row.querySelector('[data-field="opening_cash"]');
+                    if (openingCashCell) {
+                        originalData[rowId].opening_cash = getCleanNumber(openingCashCell.querySelector('.display-value').innerText);
+                    }
+                } else if (reportType === 'daily_cash_check') {
+                    if (!originalData[rowId].cash_breakdown) {
+                        originalData[rowId].cash_breakdown = {};
+                    }
+                    row.querySelectorAll('.cash-breakdown-input').forEach(input => {
+                        const denom = input.dataset.denom;
+                        originalData[rowId].cash_breakdown[denom] = getCleanNumber(input.value);
+                    });
+                }
             });
+
             reportTableContainer.dataset.originalData = JSON.stringify(originalData);
 
+            reportTableContainer.querySelectorAll('.editable-cell').forEach(cell => {
+                const displayValueElement = cell.querySelector('.display-value');
+                const editableElement = cell.querySelector('.editable-input, .editable-select');
+                if(editableElement && displayValueElement) {
+                    if(editableElement.tagName === 'SELECT') {
+                        editableElement.value = cell.dataset.categoryId;
+                    } else {
+                        let rawValue = displayValueElement.innerText.replace('NT$','').replace('$','');
+                        editableElement.value = getCleanNumber(rawValue);
+                    }
+                }
+            });
             toggleEditMode(true);
         });
     }
 
-    // 點擊「放棄」按鈕
     if (cancelBtn) {
         cancelBtn.addEventListener('click', () => {
             const originalData = JSON.parse(reportTableContainer.dataset.originalData);
+            
             reportTableContainer.querySelectorAll('tr[data-id]').forEach(row => {
                 const rowId = row.dataset.id;
-                if (originalData[rowId]) {
-                    row.querySelectorAll('.editable-cell').forEach(cell => {
-                        const field = cell.dataset.field;
-                        const displayValueElement = cell.querySelector('.display-value');
-                        const inputValueElement = cell.querySelector('.editable-input');
-                        
-                        if (field && originalData[rowId][field] !== undefined) {
-                            displayValueElement.innerText = formatAsCurrency(originalData[rowId][field]);
-                            inputValueElement.value = originalData[rowId][field];
-                        } else if (cell.classList.contains('cash-breakdown-cell') && originalData[rowId].cash_breakdown) {
-                            const denom = inputValueElement.dataset.denom;
-                            if (originalData[rowId].cash_breakdown[denom] !== undefined) {
-                                displayValueElement.innerText = originalData[rowId].cash_breakdown[denom];
-                                inputValueElement.value = originalData[rowId].cash_breakdown[denom];
-                            }
-                        } else if (cell.dataset.itemId && originalData[rowId].items) {
-                            const itemId = cell.dataset.itemId;
-                            if (originalData[rowId].items[itemId] !== undefined) {
-                                displayValueElement.innerText = formatAsCurrency(originalData[rowId].items[itemId]);
-                                inputValueElement.value = originalData[rowId].items[itemId];
-                            }
+                const originalTransactionData = originalData[rowId];
+                if (!originalTransactionData) return;
+
+                if (reportType === 'transaction_log') {
+                    const cashReceivedCell = row.querySelector('[data-field="cash_received"]');
+                    if (cashReceivedCell) {
+                        const input = cashReceivedCell.querySelector('.editable-input');
+                        const span = cashReceivedCell.querySelector('.display-value');
+                        input.value = originalTransactionData.cash_received;
+                        span.innerText = formatAsCurrency(originalTransactionData.cash_received);
+                    }
+
+                    const itemPriceCell = row.querySelector('[data-field="item_price"]');
+                    const categoryCell = row.querySelector('[data-field="category"]');
+                    if (itemPriceCell && categoryCell) {
+                        const itemId = itemPriceCell.dataset.itemId;
+                        const originalItemData = originalTransactionData.items[itemId];
+                        if (originalItemData) {
+                            const priceInput = itemPriceCell.querySelector('.editable-input');
+                            const priceSpan = itemPriceCell.querySelector('.display-value');
+                            priceInput.value = originalItemData.price;
+                            priceSpan.innerText = formatAsCurrency(originalItemData.price);
+
+                            const categorySelect = categoryCell.querySelector('.editable-select');
+                            const categorySpan = categoryCell.querySelector('.display-value');
+                            categorySelect.value = originalItemData.category_id;
+                            categorySpan.innerText = categorySelect.options[categorySelect.selectedIndex].text;
+                        }
+                    }
+                } else if (reportType === 'daily_summary') {
+                    const openingCashCell = row.querySelector('[data-field="opening_cash"]');
+                    if (openingCashCell) {
+                        const input = openingCashCell.querySelector('.editable-input');
+                        const span = openingCashCell.querySelector('.display-value');
+                        const originalValue = originalTransactionData.opening_cash;
+                        input.value = originalValue;
+                        span.innerText = formatAsCurrency(originalValue);
+                    }
+                } else if (reportType === 'daily_cash_check') {
+                    row.querySelectorAll('.cash-breakdown-input').forEach(input => {
+                        const denom = input.dataset.denom;
+                        const originalValue = originalTransactionData.cash_breakdown[denom];
+                        if (originalValue !== undefined) {
+                            input.value = originalValue;
+                            const span = input.closest('.editable-cell').querySelector('.display-value');
+                            span.innerText = originalValue;
                         }
                     });
                 }
             });
             
-            // 重新計算所有依賴欄位
             reportTableContainer.querySelectorAll('tr[data-id]').forEach(row => {
                 if (reportType === 'daily_summary') updateDailySummaryRow(row);
                 if (reportType === 'daily_cash_summary') updateDailyCashSummaryRow(row);
@@ -203,59 +237,55 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 處理表單提交
     const editableForm = document.getElementById(`editable-form-${reportType}`);
     if (editableForm) {
         editableForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            let payload = [];
 
-            const updatedData = [];
-            let isValid = true;
-
-            reportTableContainer.querySelectorAll('tbody tr[data-id]').forEach(row => {
-                const rowId = row.dataset.id;
-                const rowData = { id: rowId };
-
-                // 處理單一欄位
-                row.querySelectorAll('.editable-cell').forEach(cell => {
-                    const field = cell.dataset.field;
-                    const input = cell.querySelector('.editable-input');
-                    if (input) {
-                        const value = getCleanNumber(input.value);
-                        if (field) {
-                            if (input.dataset.denom) { // 處理現金盤點
-                                if (!rowData.cash_breakdown) rowData.cash_breakdown = {};
-                                rowData.cash_breakdown[input.dataset.denom] = value;
-                            } else {
-                                rowData[field] = value;
-                            }
-                        }
-                    }
-                });
-
-                // 處理多個項目 (特別針對 transaction_log)
-                if (reportType === 'transaction_log') {
-                    rowData.items = [];
-                    row.querySelectorAll('[data-item-id]').forEach(itemCell => {
-                        const itemId = itemCell.dataset.itemId;
-                        const input = itemCell.querySelector('.editable-input');
-                        if (input) {
-                            rowData.items.push({
-                                id: itemId,
-                                price: getCleanNumber(input.value)
-                            });
-                        }
+            if (reportType === 'daily_summary') {
+                 reportTableContainer.querySelectorAll('tbody tr[data-id]').forEach(row => {
+                    const rowData = {
+                        id: row.dataset.id,
+                        opening_cash: getCleanNumber(row.querySelector('[data-field="opening_cash"] .editable-input').value)
+                    };
+                    payload.push(rowData);
+                 });
+            } else if (reportType === 'daily_cash_check') {
+                reportTableContainer.querySelectorAll('tbody tr[data-id]').forEach(row => {
+                    const rowData = { id: row.dataset.id, cash_breakdown: {} };
+                    row.querySelectorAll('.cash-breakdown-input').forEach(input => {
+                        rowData.cash_breakdown[input.dataset.denom] = getCleanNumber(input.value);
                     });
-                }
-                
-                updatedData.push(rowData);
-            });
-            
-            if (!isValid) {
-                alert('請檢查輸入的數據。');
-                return;
+                    payload.push(rowData);
+                });
+            } else if (reportType === 'transaction_log') {
+                 const updatedData = {};
+                 reportTableContainer.querySelectorAll('tbody tr[data-id]').forEach(row => {
+                     const rowId = row.dataset.id;
+                     if (!updatedData[rowId]) {
+                         updatedData[rowId] = { id: rowId, items: [] };
+                         const cashReceivedCell = row.querySelector('[data-field="cash_received"]');
+                         if (cashReceivedCell) {
+                             updatedData[rowId].cash_received = getCleanNumber(cashReceivedCell.querySelector('.editable-input').value);
+                         }
+                     }
+                     
+                     const itemCell = row.querySelector('[data-item-id]');
+                     if (itemCell) {
+                         const itemId = itemCell.dataset.itemId;
+                         const priceInput = itemCell.querySelector('.editable-input');
+                         const categorySelect = row.querySelector('[data-field="category"] .editable-select');
+                         updatedData[rowId].items.push({
+                             id: itemId,
+                             price: getCleanNumber(priceInput.value),
+                             category_id: categorySelect.value
+                         });
+                     }
+                 });
+                 payload = Object.values(updatedData);
             }
-
+            
             try {
                 const response = await fetch(editableForm.action, {
                     method: 'POST',
@@ -263,9 +293,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': document.querySelector('[name="csrf_token"]').value
                     },
-                    body: JSON.stringify(updatedData)
+                    body: JSON.stringify(payload)
                 });
-
                 const result = await response.json();
                 if (result.success) {
                     window.location.reload();
@@ -279,7 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 實時更新計算欄位
     reportTableContainer.addEventListener('input', function(event) {
         const input = event.target;
         if (input.classList.contains('editable-input')) {
@@ -291,6 +319,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 初始設置
+    reportTableContainer.addEventListener('change', function(event) {
+        const select = event.target;
+        if (select.classList.contains('editable-select')) {
+            const displayValueSpan = select.closest('.editable-cell').querySelector('.display-value');
+            displayValueSpan.innerText = select.options[select.selectedIndex].text;
+            select.closest('.editable-cell').dataset.categoryId = select.value;
+            
+            const row = select.closest('tr');
+            if (reportType === 'transaction_log') {
+                 updateTransactionLogRow(row);
+            }
+        }
+    });
+    
     toggleEditMode(false);
 });

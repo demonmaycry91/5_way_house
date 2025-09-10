@@ -22,7 +22,7 @@
     
     /* 外框：固定高度，用於穩定版面 */
     .chart-wrapper {
-        height: 50vh;
+        height: 50vh; /* **關鍵：設定一個固定的高度** */
         min-height: 400px;
         width: 100%;
         display: flex;
@@ -33,9 +33,9 @@
     /* 內框：只負責容納 Canvas */
     .chart-container {
         position: relative;
-        width: 100%;
         height: 100%;
         max-width: 900px;
+        width: 100%;
     }
     
     .form-row-container {
@@ -70,7 +70,7 @@
     /* 確保所有可編輯或不可編輯的儲存格都有相同的盒模型 */
     .editable-cell {
         position: relative;
-        padding: 0;
+        padding: 0; /* 移除 padding，由內部元素處理 */
     }
     .editable-cell .display-value, 
     .editable-cell .editable-input {
@@ -91,7 +91,7 @@
         top: 0;
         left: 0;
         display: block;
-        visibility: hidden;
+        visibility: hidden; /* 預設隱藏但不影響版面 */
         border-color: #ced4da;
     }
 
@@ -281,7 +281,7 @@
                 <form id="editable-form-transaction_log" method="POST" action="{{ url_for('report.save_transaction_log_data') }}">
                 {{ csrf_token() }}
                 <table class="table table-striped table-hover transaction-log-table">
-                    <thead><tr><th>時間</th><th>據點</th><th>項目/折扣</th><th>類型</th><th class="text-end">單價/折扣額</th><th class="text-end">收到現金</th><th class="text-end">交易總額</th><th class="text-end">找零</th></tr></thead>
+                    <thead><tr><th>時間</th><th>據點</th><th>項目/折扣</th><th>類型</th><th class="text-end">單價/折扣額</th><th class="text-end">收到現金</th><th class="text-end">交易總額</th></tr></thead>
                     <tbody>
                         {% for transaction in results %}
                         <tr data-id="{{ transaction.id }}">
@@ -303,7 +303,6 @@
                                     <input type="number" class="text-end editable-input" value="{{ transaction.cash_received or 0 }}">
                                 </td>
                                 <td rowspan="{{ transaction.items|length }}" class="text-end fw-bold" data-field="amount">${{ "{:,.0f}".format(transaction.amount) }}</td>
-                                <td rowspan="{{ transaction.items|length }}" class="text-end fw-bold" data-field="change_given">${{ "{:,.0f}".format(transaction.change_given or 0) }}</td>
                                 {% endif %}
                                 {% if loop.index > 1 %}
                                 </tr>
@@ -311,7 +310,7 @@
                             {% endfor %}
                         </tr>
                         {% else %}
-                        <tr><td colspan="8" class="text-center">找不到任何交易紀錄。</td></tr>
+                        <tr><td colspan="7" class="text-center">找不到任何交易紀錄。</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -339,9 +338,9 @@
                         {% if results %}
                         <tr class="fw-bold table-secondary">
                             <td colspan="2">總計</td>
-                            <td class="text-end grand-total-closing-cash">{{ "NT$ {:,.0f}".format(grand_total.closing_cash) }}</td>
+                            <td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.closing_cash) }}</td>
                             {% for denom in denominations %}
-                                <td class="text-end" data-denom-total="{{ denom }}">{% set denom_total = namespace(value=0) %}{% for day in results %}{% set denom_total.value = denom_total.value + (day.cash_breakdown|from_json).get(denom|string, 0) %}{% endfor %}{{ denom_total.value }}</td>
+                                <td class="text-end">{% set denom_total = namespace(value=0) %}{% for day in results %}{% set denom_total.value = denom_total.value + (day.cash_breakdown|from_json).get(denom|string, 0) %}{% endfor %}{{ denom_total.value }}</td>
                             {% endfor %}
                         </tr>
                         {% for day in results %}
@@ -353,12 +352,12 @@
                             </td>
                             {% set cash_breakdown = day.cash_breakdown|from_json %}
                             {% for denom in denominations %}
-                                <td class="text-end editable-cell cash-breakdown-cell">
+                                <td class="text-end editable-cell">
                                     <span class="display-value">{{ cash_breakdown.get(denom|string, 0) }}</span>
-                                    <input type="number" class="text-end editable-input cash-breakdown-input" 
+                                    <input type="number" class="form-control text-end editable-input cash-breakdown-input" 
                                         name="count_{{ denom }}" 
                                         data-denom="{{ denom }}" 
-                                        value="{{ cash_breakdown.get(denom|string, 0) }}" min="0">
+                                        value="{{ cash_breakdown.get(denom|string, 0) }}" min="0" style="display:none;">
                                 </td>
                             {% endfor %}
                         </tr>
@@ -393,11 +392,11 @@
                             <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}" data-field="cash_diff">{{ "NT$ {:,.0f}".format(day.cash_diff or 0) }}</td>
                             <td class="text-end editable-cell" data-field="donation_total">
                                 <span class="display-value">{{ "NT$ {:,.0f}".format(day.donation_total or 0) }}</span>
-                                <input type="number" class="form-control text-end editable-input" value="{{ day.donation_total or 0 }}">
+                                <input type="number" class="form-control text-end editable-input" value="{{ day.donation_total or 0 }}" style="display:none;">
                             </td>
                             <td class="text-end editable-cell" data-field="other_total">
                                 <span class="display-value">{{ "NT$ {:,.0f}".format(day.other_total or 0) }}</span>
-                                <input type="number" class="form-control text-end editable-input" value="{{ day.other_total or 0 }}">
+                                <input type="number" class="form-control text-end editable-input" value="{{ day.other_total or 0 }}" style="display:none;">
                             </td>
                             <td class="text-end" data-field="other_cash">{{ "NT$ {:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
                         </tr>
@@ -515,6 +514,7 @@
 <script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
 <script src="https://npmcdn.com/flatpickr/dist/plugins/monthSelect/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/report_scripts.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const reportTypeSelect = document.getElementById('reportTypeSelect');
@@ -652,14 +652,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const chartDataJson = '{{ chart_data | safe or "{}" }}';
     if(chartDataJson && chartDataJson !== '{}') {
         const chartData = JSON.parse(chartDataJson);
-        const chartWrapper = document.querySelector('.chart-wrapper');
-        const chartContainer = document.querySelector('.chart-container');
         const ctx = document.getElementById('myChart');
-
-        const wrapperHeight = chartWrapper.clientHeight;
-        const width_16_9 = wrapperHeight * (16 / 9);
-        const width_4_3 = wrapperHeight * (4 / 3);
-
         if (ctx && chartData && chartData.labels && chartData.labels.length > 0) {
             const reportType = '{{ report_type }}';
             let defaultType = 'bar';
@@ -671,25 +664,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: chartData, 
                 options: { 
                     responsive: true, 
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: (defaultType !== 'pie'),
+                    aspectRatio: 16/9,
                     scales: { y: { beginAtZero: true, display: (defaultType !== 'pie') }, y1: { beginAtZero: true, display: false, position: 'right' } }, 
                     plugins: { title: { display: true, text: document.querySelector('#reportTypeSelect option:checked').text }, legend: { position: 'top' } } 
                 } 
             };
             if (reportType === 'sales_trend') { config.options.scales.y1.display = true; }
-            
             const myChart = new Chart(ctx, config);
 
-            chartContainer.style.maxWidth = `${width_16_9}px`;
-            
             document.querySelectorAll('.chart-type-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const type = this.dataset.type;
                     myChart.config.type = type;
                     const isPie = (type === 'pie');
+                    myChart.options.maintainAspectRatio = !isPie;
                     myChart.options.scales.y.display = !isPie;
                     if (myChart.options.scales.y1) myChart.options.scales.y1.display = !isPie && (reportType === 'sales_trend');
-                    
                     myChart.update();
                 });
             });
@@ -698,13 +689,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 button.addEventListener('click', function() {
                     document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
                     this.classList.add('active');
-                    const selectedRatio = this.dataset.ratio;
-                    
-                    if (selectedRatio === '16/9') {
-                        chartContainer.style.maxWidth = `${width_16_9}px`;
-                    } else if (selectedRatio === '4/3') {
-                        chartContainer.style.maxWidth = `${width_4_3}px`;
-                    }
+                    myChart.options.aspectRatio = (this.dataset.ratio === '16/9') ? 16/9 : 4/3;
+                    myChart.resize();
                 });
             });
             

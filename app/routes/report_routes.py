@@ -1,12 +1,12 @@
 # app/routes/report_routes.py
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, Response
-from flask_login import login_required, current_user
+from flask_login import login_required
 from ..models import BusinessDay, Transaction, TransactionItem, Location, DailySettlement, Category
 from ..forms import ReportQueryForm, SettlementForm
 from .. import db, csrf
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func, case, extract
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 import json
 from ..decorators import admin_required
 from weasyprint import HTML
@@ -22,6 +22,7 @@ DENOMINATIONS = [1000, 500, 200, 100, 50, 10, 5, 1]
 
 @bp.before_request
 @login_required
+@admin_required
 def before_request():
     pass
 
@@ -46,41 +47,50 @@ def get_date_range_from_period(time_unit, year=None, month=None, quarter=None, p
     except (ValueError, TypeError):
         return None, None
 
-
-@bp.route('/query', methods=['GET', 'POST'])
-@admin_required
+@bp.route('/query', methods=['GET'])
 def query():
     form = ReportQueryForm()
     
-    if form.validate_on_submit():
-        params = {key: value for key, value in request.form.items() if key != 'csrf_token'}
-        return redirect(url_for('report.query', **params))
+    all_categories = Category.query.all()
+    form.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
 
     results = None
     grand_total = None
     chart_data = None
     total_revenue = 0
-    report_type = request.args.get('report_type')
+    report_type = request.args.get('report_type', 'daily_summary')
+    form.report_type.data = report_type
 
     if report_type:
         form.process(request.args)
-        location_id = request.args.get('location_id')
+        location_id = request.args.get('location_id', 'all')
 
         if report_type != 'periodic_performance':
             start_date_str = request.args.get('start_date')
             end_date_str = request.args.get('end_date')
             if not start_date_str:
-                flash('查詢日期為必填欄位。', 'warning')
-                return render_template('report/query.html', form=form, results=None)
-            start_date = date.fromisoformat(start_date_str)
-            end_date = date.fromisoformat(end_date_str) if end_date_str else start_date
+                start_date = date.today()
+                end_date = date.today()
+                flash('查詢日期為必填欄位，已自動選取今日。', 'info')
+                form.start_date.data = start_date
+                form.end_date.data = end_date
+            else:
+                try:
+                    start_date = date.fromisoformat(start_date_str)
+                    end_date = date.fromisoformat(end_date_str) if end_date_str else start_date
+                except ValueError:
+                    start_date = date.today()
+                    end_date = date.today()
+                    flash('無效的日期格式，已自動選取今日。', 'warning')
+                    form.start_date.data = start_date
+                    form.end_date.data = end_date
         else:
             time_unit = request.args.get('time_unit')
             start_date_a, end_date_a = get_date_range_from_period(time_unit, year=request.args.get('year_a'), quarter=request.args.get('quarter_a'), period_str=request.args.get('period_a'))
             start_date_b, end_date_b = get_date_range_from_period(time_unit, year=request.args.get('year_b'), quarter=request.args.get('quarter_b'), period_str=request.args.get('period_b'))
             if not all([start_date_a, end_date_a, start_date_b, end_date_b]):
                  flash('週期性報表的時間參數不完整或格式錯誤，請重新選擇。', 'warning')
-                 return render_template('report/query.html', form=form)
+                 return render_template('report/query.html', form=form, all_categories=all_categories)
 
         if report_type != 'periodic_performance':
             query_base = db.session.query(BusinessDay).options(db.joinedload(BusinessDay.location)).filter(BusinessDay.date.between(start_date, end_date))
@@ -88,7 +98,7 @@ def query():
                 query_base = query_base.filter(BusinessDay.location_id == location_id)
 
         if report_type == 'daily_summary':
-            results = query_base.order_by(BusinessDay.date, BusinessDay.location_id).all()
+            results = query_base.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
             if results:
                 chart_labels = sorted(list(set(r.date.strftime('%Y-%m-%d') for r in results)))
                 locations = sorted(list(set(r.location.name for r in results)))
@@ -106,7 +116,7 @@ def query():
             ).filter(Transaction.business_day_id.in_(business_day_ids)).order_by(Transaction.timestamp).all()
 
         elif report_type in ['daily_cash_summary', 'daily_cash_check']:
-            results = query_base.order_by(BusinessDay.date, BusinessDay.location_id).all()
+            results = query_base.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
             if results:
                 grand_total_dict = {
                     'opening_cash': sum(r.opening_cash or 0 for r in results), 'total_sales': sum(r.total_sales or 0 for r in results),
@@ -226,12 +236,12 @@ def query():
                            grand_total=grand_total,
                            chart_data=json.dumps(chart_data) if chart_data else None,
                            total_revenue=total_revenue,
-                           denominations=DENOMINATIONS)
+                           denominations=DENOMINATIONS,
+                           all_categories=[{'id': c.id, 'name': c.name, 'category_type': c.category_type} for c in all_categories])
 
-# 新增路由: 儲存每日摘要數據
+
 @bp.route('/save_daily_summary_data', methods=['POST'])
 @csrf.exempt
-@admin_required
 def save_daily_summary_data():
     try:
         data = request.get_json()
@@ -239,85 +249,17 @@ def save_daily_summary_data():
             business_day = BusinessDay.query.get(row_data.get('id'))
             if not business_day:
                 continue
-
             business_day.opening_cash = float(row_data.get('opening_cash', business_day.opening_cash))
-            # 重新計算帳面總額與帳差
             business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
             business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
-
         db.session.commit()
         return jsonify({'success': True, 'message': '每日摘要數據已成功更新。'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# 新增路由: 儲存各據點當日結算數據
-@bp.route('/save_daily_cash_summary_data', methods=['POST'])
-@csrf.exempt
-@admin_required
-def save_daily_cash_summary_data():
-    try:
-        data = request.get_json()
-        for row_data in data:
-            business_day = BusinessDay.query.get(row_data.get('id'))
-            if not business_day:
-                continue
-
-            business_day.donation_total = float(row_data.get('donation_total', business_day.donation_total))
-            business_day.other_total = float(row_data.get('other_total', business_day.other_total))
-            
-        db.session.commit()
-        return jsonify({'success': True, 'message': '當日結算數據已成功更新。'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-        
-# 新增路由: 儲存交易細節數據
-@bp.route('/save_transaction_log_data', methods=['POST'])
-@csrf.exempt
-@admin_required
-def save_transaction_log_data():
-    try:
-        data = request.get_json()
-        for transaction_data in data:
-            transaction = Transaction.query.get(transaction_data.get('id'))
-            if not transaction:
-                continue
-
-            # 更新實收現金
-            transaction.cash_received = float(transaction_data.get('cash_received', transaction.cash_received))
-
-            # 更新每個交易品項
-            for item_data in transaction_data.get('items', []):
-                item = TransactionItem.query.get(item_data.get('id'))
-                if item:
-                    item.price = float(item_data.get('price', item.price))
-
-            # 重新計算交易總額
-            new_transaction_amount = sum(item.price for item in transaction.items)
-            transaction.amount = new_transaction_amount
-            
-            # 重新計算找零金額
-            transaction.change_given = (transaction.cash_received or 0) - (transaction.amount or 0)
-
-            # 更新所屬營業日的總計數據
-            business_day = transaction.business_day
-            if business_day:
-                all_transactions_for_day = BusinessDay.query.get(business_day.id).transactions
-                business_day.total_sales = sum(t.amount or 0 for t in all_transactions_for_day)
-                business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
-                business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
-                
-        db.session.commit()
-        return jsonify({'success': True, 'message': '交易細節數據已成功更新。'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-# 調整現有路由: 儲存現金盤點數據
 @bp.route('/save_cash_check_data', methods=['POST'])
 @csrf.exempt
-@admin_required
 def save_cash_check_data():
     try:
         data = request.get_json()
@@ -327,31 +269,57 @@ def save_cash_check_data():
             business_day = BusinessDay.query.get(business_day_id)
             if not business_day:
                 continue
-            
-            # 更新現金盤點詳細數據並重新計算 closing_cash
             cash_breakdown_raw = row_data.get('cash_breakdown')
             if isinstance(cash_breakdown_raw, dict):
-                # 確保面額數據都是整數
                 cash_breakdown_dict = {key: int(value) for key, value in cash_breakdown_raw.items()}
                 business_day.cash_breakdown = json.dumps(cash_breakdown_dict)
-                
-                # 根據新輸入的面額數量重新計算 closing_cash
                 closing_cash = sum(int(denom) * count for denom, count in cash_breakdown_dict.items())
                 business_day.closing_cash = float(closing_cash)
-            
-            # 重新計算 expected_cash 和 cash_diff
             business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
             business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
-
         db.session.commit()
-        flash('報表數據已成功儲存！', 'success')
-        return jsonify({'success': True, 'message': '資料已成功更新。'})
+        return jsonify({'success': True, 'message': '報表數據已成功儲存！'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'更新失敗: {str(e)}'}), 500
 
+@bp.route('/save_transaction_log_data', methods=['POST'])
+@csrf.exempt
+def save_transaction_log_data():
+    try:
+        data = request.get_json()
+        for transaction_data in data:
+            transaction = Transaction.query.get(transaction_data.get('id'))
+            if not transaction:
+                continue
+            transaction.cash_received = float(transaction_data.get('cash_received', transaction.cash_received))
+            for item_data in transaction_data.get('items', []):
+                item = TransactionItem.query.get(item_data.get('id'))
+                if item:
+                    item.price = float(item_data.get('price', item.price))
+                    item.category_id = item_data.get('category_id', item.category_id)
+            new_transaction_amount = sum(item.price for item in transaction.items)
+            transaction.amount = new_transaction_amount
+            transaction.change_given = (transaction.cash_received or 0) - (transaction.amount or 0)
+            business_day = transaction.business_day
+            if business_day:
+                all_transactions_for_day = BusinessDay.query.get(business_day.id).transactions
+                business_day.total_sales = sum(t.amount or 0 for t in all_transactions_for_day)
+                business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+                business_day.cash_diff = (business_day.closing_cash or 0) - (business_day.expected_cash or 0)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '交易細節數據已成功更新。'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@bp.route('/save_daily_cash_summary_data', methods=['POST'])
+@csrf.exempt
+def save_daily_cash_summary_data():
+    flash('錯誤：捐款與其他收入為累計欄位，無法手動修改。', 'danger')
+    return jsonify({'success': False, 'message': '捐款與其他收入為累計欄位，無法手動修改。'}), 400
+
 @bp.route('/export_csv')
-@admin_required
 def export_csv():
     report_type = request.args.get('report_type')
     location_id = request.args.get('location_id')
