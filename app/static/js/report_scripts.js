@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         originalData[rowId].change_given = getCleanNumber(changeGivenElement.innerText);
                     }
                     
-                    const itemPriceCell = row.querySelector('[data-item-id]');
+                    const itemPriceCell = row.querySelector('[data-field="item_price"]');
                     const categoryCell = row.querySelector('[data-field="category"]');
                     if (itemPriceCell && categoryCell) {
                         const itemId = itemPriceCell.dataset.itemId;

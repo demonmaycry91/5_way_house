@@ -233,8 +233,8 @@
                 <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="pie">圓餅圖</button>
             </div>
             <div class="btn-group" role="group" aria-label="圖表比例">
-                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn" data-ratio="16/9">16:9</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn active" data-ratio="4/3">4:3</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn active" data-ratio="16/9">16:9</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn" data-ratio="4/3">4:3</button>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="download-chart-btn">下載圖表</button>
         </div>
@@ -320,8 +320,6 @@
                                 </tr>
                                 {% endif %}
                             {% endfor %}
-                            {% if transaction.items|length > 0 %}
-                            {% endif %}
                         </tr>
                         {% else %}
                         <tr><td colspan="8" class="text-center">找不到任何交易紀錄。</td></tr>
@@ -528,6 +526,7 @@
 <script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
 <script src="https://npmcdn.com/flatpickr/dist/plugins/monthSelect/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/report_scripts.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const reportTypeSelect = document.getElementById('reportTypeSelect');
@@ -538,11 +537,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const periodicDateFields = document.getElementById('periodic-date-fields');
     const periodA_container = document.getElementById('period-a-selector');
     const periodB_container = document.getElementById('period-b-selector');
-    const chartContainer = document.querySelector('.chart-container');
-    const chartWrapper = document.querySelector('.chart-wrapper');
-    let myChart = null;
-    let currentChartType = null;
-    let currentAspectRatio = 16/9;
 
     const taiwanLocale = {
         ...flatpickr.l10ns.zh_tw,
@@ -690,7 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Resize observer to handle window resize events
         const observer = new ResizeObserver(() => {
-            setContainerWidthByRatio(currentAspectRatio === '16/9' ? 16/9 : 4/3);
+            setContainerWidthByRatio(currentAspectRatio);
         });
         observer.observe(chartWrapper);
         
@@ -734,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 config.options.scales.y1.display = true; 
             }
 
-            const myChart = new Chart(ctx, config);
+            myChart = new Chart(ctx, config);
 
             document.querySelectorAll('.chart-type-btn').forEach(button => {
                 button.addEventListener('click', function() {
