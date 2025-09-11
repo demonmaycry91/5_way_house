@@ -351,7 +351,7 @@
                         {% if results %}
                         <tr class="fw-bold table-secondary">
                             <td colspan="2">總計</td>
-                            <td class="text-end closing_cash_display">{{ "NT$ {:,.0f}".format(grand_total.closing_cash) }}</td>
+                            <td class="text-end closing_cash_display">{{ "$ {:,.0f}".format(grand_total.closing_cash) }}</td>
                             {% for denom in denominations %}
                                 <td class="text-end" data-denom-total="{{ denom }}">{% set denom_total = namespace(value=0) %}{% for day in results %}{% set denom_total.value = denom_total.value + (day.cash_breakdown|from_json).get(denom|string, 0) %}{% endfor %}{{ denom_total.value }}</td>
                             {% endfor %}
@@ -361,7 +361,7 @@
                             <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
                             <td>{{ day.location.name }}</td>
                             <td class="text-end calculated-field">
-                                <span class="display-value closing_cash_display">{{ "NT$ {:,.0f}".format(day.closing_cash or 0) }}</span>
+                                <span class="display-value closing_cash_display">{{ "$ {:,.0f}".format(day.closing_cash or 0) }}</span>
                             </td>
                             {% set cash_breakdown = day.cash_breakdown|from_json %}
                             {% for denom in denominations %}
@@ -392,26 +392,26 @@
                         {% if results %}
                         <tr class="fw-bold table-secondary">
                             <td colspan="2">總計 ({{ request.args.get('start_date') }} {% if request.args.get('end_date') and request.args.get('end_date') != request.args.get('start_date') %} - {{ request.args.get('end_date') }}{% endif %})</td>
-                            <td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.opening_cash) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.total_sales) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.expected_cash) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.closing_cash) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.cash_diff) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.donation_total) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.other_total) }}</td><td class="text-end">{{ "NT$ {:,.0f}".format(grand_total.other_cash) }}</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.opening_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.total_sales) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.expected_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.closing_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.cash_diff) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.donation_total) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.other_total) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.other_cash) }}</td>
                         </tr>
                         {% for day in results %}
                         <tr data-id="{{ day.id }}">
                             <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
                             <td>{{ day.location.name }}</td>
-                            <td class="text-end" data-field="opening_cash">{{ "NT$ {:,.0f}".format(day.opening_cash or 0) }}</td>
-                            <td class="text-end" data-field="total_sales">{{ "NT$ {:,.0f}".format(day.total_sales or 0) }}</td>
-                            <td class="text-end" data-field="expected_cash">{{ "NT$ {:,.0f}".format(day.expected_cash or 0) }}</td>
-                            <td class="text-end" data-field="closing_cash">{{ "NT$ {:,.0f}".format(day.closing_cash or 0) }}</td>
-                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}" data-field="cash_diff">{{ "NT$ {:,.0f}".format(day.cash_diff or 0) }}</td>
+                            <td class="text-end" data-field="opening_cash">{{ "$ {:,.0f}".format(day.opening_cash or 0) }}</td>
+                            <td class="text-end" data-field="total_sales">{{ "$ {:,.0f}".format(day.total_sales or 0) }}</td>
+                            <td class="text-end" data-field="expected_cash">{{ "$ {:,.0f}".format(day.expected_cash or 0) }}</td>
+                            <td class="text-end" data-field="closing_cash">{{ "$ {:,.0f}".format(day.closing_cash or 0) }}</td>
+                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}" data-field="cash_diff">{{ "$ {:,.0f}".format(day.cash_diff or 0) }}</td>
                             <td class="text-end editable-cell" data-field="donation_total">
-                                <span class="display-value">{{ "NT$ {:,.0f}".format(day.donation_total or 0) }}</span>
+                                <span class="display-value">{{ "$ {:,.0f}".format(day.donation_total or 0) }}</span>
                                 <input type="number" class="form-control text-end editable-input" value="{{ day.donation_total or 0 }}">
                             </td>
                             <td class="text-end editable-cell" data-field="other_total">
-                                <span class="display-value">{{ "NT$ {:,.0f}".format(day.other_total or 0) }}</span>
+                                <span class="display-value">{{ "$ {:,.0f}".format(day.other_total or 0) }}</span>
                                 <input type="number" class="form-control text-end editable-input" value="{{ day.other_total or 0 }}">
                             </td>
-                            <td class="text-end" data-field="other_cash">{{ "NT$ {:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
+                            <td class="text-end" data-field="other_cash">{{ "$ {:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
                         </tr>
                         {% endfor %}
                         {% else %}
