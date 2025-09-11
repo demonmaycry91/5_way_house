@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
     }
 
+    // 修正: 統一貨幣格式化函式，確保有千分位和整數
     function formatAsCurrency(number) {
         return `$${new Intl.NumberFormat('en-US').format(Math.round(number))}`;
     }
@@ -369,22 +370,26 @@ document.addEventListener('DOMContentLoaded', function() {
             displayValueSpan.innerText = select.options[select.selectedIndex].text;
             select.closest('.editable-cell').dataset.categoryId = newCategoryId;
             
-            const itemTypeCell = select.closest('tr').querySelector('td:nth-child(4) .badge');
-            const itemType = categoryTypeMap[newCategoryId];
+            // 修正：從 select 的 options 取得 data-type 屬性
+            const selectedOption = select.options[select.selectedIndex];
+            const itemType = selectedOption.dataset.type;
 
-            if (itemTypeCell && itemType) {
+            const row = select.closest('tr');
+            // 修正：找到 row 中的類型徽章並更新
+            const itemTypeBadge = row.querySelector('td .badge');
+
+            if (itemTypeBadge && itemType) {
                 if (itemType.includes('discount')) {
-                    itemTypeCell.classList.remove('bg-success');
-                    itemTypeCell.classList.add('bg-danger');
-                    itemTypeCell.innerText = '折扣';
+                    itemTypeBadge.classList.remove('bg-success');
+                    itemTypeBadge.classList.add('bg-danger');
+                    itemTypeBadge.innerText = '折扣';
                 } else {
-                    itemTypeCell.classList.remove('bg-danger');
-                    itemTypeCell.classList.add('bg-success');
-                    itemTypeCell.innerText = '商品';
+                    itemTypeBadge.classList.remove('bg-danger');
+                    itemTypeBadge.classList.add('bg-success');
+                    itemTypeBadge.innerText = '商品';
                 }
             }
 
-            const row = select.closest('tr');
             if (reportType === 'transaction_log') {
                  updateTransactionLogRow(row);
             }
