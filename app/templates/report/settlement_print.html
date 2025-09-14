@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>合併報表總結 - {{ report_date.strftime('%Y-%m-%d') }}</title>
+    <style>
+        /* --- 直接套用 daily_report 的所有樣式 --- */
+        @page {
+            size: A4 portrait;
+            margin: 2cm;
+        }
+        :root {
+            --table-border-width: 1px; 
+            --signature-line-width: 1px;
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #212529;
+        }
+        .report-container {
+            width: 100%;
+        }
+        .header {
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+        .header h2 {
+            font-size: 24pt;
+            margin: 0;
+            font-weight: bold;
+        }
+        .header p {
+            font-size: 10pt;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        hr {
+            border: 0;
+            border-top: 2px solid #343a40;
+            margin: 1.5rem 0;
+        }
+        h3 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+        }
+        .report-table td, .report-table th {
+            border: var(--table-border-width) solid #dee2e6;
+            padding: 0.4rem;
+            vertical-align: middle;
+        }
+        .report-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            text-align: left;
+        }
+        .report-table .label-col {
+            width: 75%;
+        }
+        .report-table .currency-col {
+            width: 5%;
+            text-align: right;
+            font-family: monospace;
+        }
+        .report-table .amount-col {
+            width: 20%;
+            text-align: right;
+            font-family: monospace;
+        }
+        .report-table .remark-content-col {
+             width: 75%;
+        }
+        .text-danger {
+            color: #dc3545;
+        }
+        .signature-table {
+            width: 100%;
+            border-collapse: separate; 
+            border-spacing: 10px 0;   
+            margin-top: 2rem;
+        }
+        .signature-table .signature-cell {
+            width: 33.33%;
+            height: 80px;
+            border-bottom: var(--signature-line-width) solid #000;
+            text-align: center;
+            vertical-align: middle;
+            padding: 0;
+        }
+        .signature-table .title-cell {
+            width: 33.33%;
+            text-align: center;
+            padding-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="header">
+            <h2>合併報表總結</h2>
+            <p>結算日期：{{ report_date.strftime('%Y-%m-%d') }}</p>
+        </div>
+
+        <hr>
+
+        <!-- 當日結算 (總計) -->
+        <h3>當日結算</h3>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th class="label-col">項目</th>
+                    <th class="currency-col"></th>
+                    <th class="amount-col">金額</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for num, name, key, attr in finance_items %}
+                <tr>
+                    <td>{{ num }}. {{ name }}</td>
+                    <td class="currency-col {% if name == '溢短收' and grand_total[key] < 0 %}text-danger{% endif %}">$</td>
+                    <td class="amount-col {% if name == '溢短收' and grand_total[key] < 0 %}text-danger{% endif %}">{{ "{:,.0f}".format(grand_total[key]) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- 銷售統計 (總計) -->
+        <h3>銷售統計</h3>
+        <table class="report-table">
+             <thead>
+                <tr>
+                    <th class="label-col">項目</th>
+                    <th class="currency-col"></th>
+                    <th class="amount-col">總計</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for num, name, key, attr in sales_items %}
+                <tr>
+                    <td>{{ num }}. {{ name }}</td>
+                    <td class="currency-col"></td>
+                    <td class="amount-col">{{ grand_total[key] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- 備註 -->
+        <h3>備註</h3>
+        <table class="report-table">
+             <thead>
+                <tr>
+                    <th class="label-col">項目</th>
+                    <th class="remark-content-col">內容</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set has_remarks = false %}
+                {% for num, name, key, attr in (finance_items + sales_items) %}
+                    {% if remarks_data.get(key) %}
+                        {% set has_remarks = true %}
+                        <tr>
+                            <td>{{ num }}. {{ name }}</td>
+                            <td>{{ remarks_data.get(key, '') }}</td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+                {% if not has_remarks %}
+                <tr>
+                    <td colspan="2" style="text-align:center; color: #6c757d;">無備註</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- 簽核欄 -->
+        <h3 style="border:0;">簽核欄</h3>
+        <table class="signature-table">
+            <tbody>
+                <tr>
+                    <td class="signature-cell"></td>
+                    <td class="signature-cell"></td>
+                    <td class="signature-cell"></td>
+                </tr>
+                <tr>
+                    <td class="title-cell">作業員</td>
+                    <td class="title-cell">覆核員</td>
+                    <td class="title-cell">出納員</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+

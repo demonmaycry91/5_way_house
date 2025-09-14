@@ -9,6 +9,7 @@ from flask import (
     Blueprint,
     jsonify,
     current_app,
+    Response
 )
 from flask_login import login_user, logout_user, login_required, current_user
 from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem
@@ -19,6 +20,7 @@ from ..services import google_service
 from sqlalchemy.orm import contains_eager
 from sqlalchemy import and_
 from ..decorators import admin_required
+from weasyprint import HTML
 
 bp = Blueprint("cashier", __name__, url_prefix="/cashier")
 
@@ -26,7 +28,6 @@ bp = Blueprint("cashier", __name__, url_prefix="/cashier")
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ... (index, dashboard, login, logout, settings, rebuild_backup 路由維持不變) ...
 @bp.route('/')
 @login_required
 def index():
@@ -182,6 +183,11 @@ def record_transaction():
     items = data.get("items", [])
     today = date.today()
 
+    # --- ↓↓↓ 新增接收邏輯 --- ↓↓↓
+    cash_received = data.get("cash_received")
+    change_given = data.get("change_given")
+    # --- ↑↑↑ 新增結束 ↑↑↑ ---
+
     if not items:
         return jsonify({"success": False, "error": "交易內容不可為空"}), 400
 
@@ -198,6 +204,10 @@ def record_transaction():
             amount=total_amount, 
             item_count=len(items),
             business_day_id=business_day.id,
+            # --- ↓↓↓ 新增儲存邏輯 --- ↓↓↓
+            cash_received=cash_received,
+            change_given=change_given
+            # --- ↑↑↑ 新增結束 ↑↑↑ ---
         )
         db.session.add(new_transaction)
         
@@ -226,7 +236,6 @@ def record_transaction():
         current_app.logger.error(f"記錄交易時發生錯誤: {e}", exc_info=True)
         return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
 
-# --- ** 最終修正點：改造為通用的其他收入路由 ** ---
 @bp.route("/record_other_income", methods=["POST"])
 @csrf.exempt
 @login_required
@@ -234,7 +243,7 @@ def record_other_income():
     data = request.get_json()
     location_slug = data.get("location_slug")
     amount = data.get("amount")
-    income_type = data.get("type", "other") # 預設為 'other'
+    income_type = data.get("type", "other")
     today = date.today()
 
     try:
@@ -260,7 +269,6 @@ def record_other_income():
         current_app.logger.error(f"記錄其他收入時發生錯誤: {e}", exc_info=True)
         return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
 
-# ... (close_day, daily_report, confirm_report, print_report 路由維持不變) ...
 @bp.route("/close_day/<location_slug>", methods=["GET", "POST"])
 @login_required
 def close_day(location_slug):
@@ -324,6 +332,7 @@ def confirm_report(location_slug):
             business_day.signature_operator = request.form.get('sig_operator')
             business_day.signature_reviewer = request.form.get('sig_reviewer')
             business_day.signature_cashier = request.form.get('sig_cashier')
+            
             business_day.status = "CLOSED"
             business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
             business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
@@ -355,3 +364,4 @@ def print_report(location_slug):
     html_to_render = render_template("cashier/report_print.html", day=business_day, 帳面總額=expected_total, 帳差=difference, signatures=signatures)
     pdf = HTML(string=html_to_render).write_pdf()
     return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f"attachment;filename=daily_report_{location.slug}_{today.strftime('%Y%m%d')}.pdf"})
+

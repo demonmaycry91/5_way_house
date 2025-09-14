@@ -1,8 +1,10 @@
+# app/forms.py
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField
 from wtforms.fields import ColorField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
-from .models import User, Role, Category
+from .models import User, Role, Category, Location
+from datetime import date
 
 class LoginForm(FlaskForm):
     username = StringField('帳號', validators=[DataRequired(message="請輸入帳號。")])
@@ -23,7 +25,6 @@ class CategoryForm(FlaskForm):
     name = StringField('類別名稱', validators=[DataRequired(), Length(1, 50)])
     color = ColorField('按鈕顏色', default='#cccccc', validators=[DataRequired()])
     
-    # --- ↓↓↓ 新增/修改的欄位 ↓↓↓ ---
     category_type = SelectField(
         '類別類型',
         choices=[
@@ -36,16 +37,12 @@ class CategoryForm(FlaskForm):
         ],
         validators=[DataRequired()]
     )
-    # --- 規則設定欄位 ---
-    # `Optional()` 意思是這些欄位不是必填的，因為只有特定折扣類型才需要
     rule_target_category_id = SelectField('目標商品類別', coerce=int, validators=[Optional()])
     rule_buy_n = IntegerField('購買數量 (N)', validators=[Optional()])
     rule_get_m = IntegerField('免費/優惠數量 (M)', validators=[Optional()])
-    # --- ↑↑↑ 新增/修改結束 ↑↑↑ ---
 
     submit = SubmitField('儲存')
 
-    # 動態載入目標商品選項
     def __init__(self, location_id, *args, **kwargs):
         super(CategoryForm, self).__init__(*args, **kwargs)
         self.rule_target_category_id.choices = [
@@ -66,6 +63,39 @@ class CloseDayForm(FlaskForm):
 
 class ConfirmReportForm(FlaskForm):
     submit = SubmitField('確認存檔並結束本日營業')
+
+class ReportQueryForm(FlaskForm):
+    report_type = SelectField('報表類型', choices=[
+        ('daily_summary', '各據點每日報表'),
+        ('daily_cash_summary', '各據點當日結算'),
+        ('daily_cash_check', '各據點現金盤點'),
+        ('transaction_log', '各據點交易細節'),
+        ('combined_summary_final', '合併報表總結 (現金核對)'),
+        ('product_mix', '產品類別銷售分析'),
+        ('sales_trend', '銷售趨勢報告'),
+        ('peak_hours', '時段銷售分析'),
+        ('periodic_performance', '週期性業績分析')
+    ], validators=[DataRequired()])
+    
+    location_id = SelectField('據點', coerce=str, validators=[Optional()])
+    start_date = DateField('開始日期', validators=[DataRequired()], default=date.today)
+    end_date = DateField('結束日期', validators=[Optional()])
+    submit = SubmitField('查詢')
+
+    def __init__(self, *args, **kwargs):
+        super(ReportQueryForm, self).__init__(*args, **kwargs)
+        self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
+
+class SettlementRemarkForm(FlaskForm):
+    key = HiddenField()
+    value = StringField()
+
+class SettlementForm(FlaskForm):
+    date = HiddenField()
+    total_deposit = FloatField(validators=[Optional()])
+    total_next_day_opening_cash = FloatField(validators=[DataRequired(message="請輸入明日開店現金。")])
+    remarks = FieldList(FormField(SettlementRemarkForm), min_entries=11)
+    submit = SubmitField('儲存所有明日開店現金')
 
 class RoleForm(FlaskForm):
     """新增/編輯角色的表單"""
@@ -108,7 +138,7 @@ class GoogleSettingsForm(FlaskForm):
     drive_folder_name = StringField(
         'Google Drive 資料夾名稱',
         validators=[DataRequired(message="請輸入資料夾名稱。")],
-        description="所有報表將會備份到您 Google Drive 中以此名稱命名的資料夾。"
+        description="所有報表將會備份到您 Google Drive 中以此名稱命名名的資料夾。"
     )
     sheets_filename_format = StringField(
         'Google Sheets 檔名格式',

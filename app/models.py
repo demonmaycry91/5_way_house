@@ -106,10 +106,8 @@ class BusinessDay(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     
-    # --- ↓↓↓ 核心修正處 (將 location__id 改回 location_id) ↓↓↓ ---
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
-    # --- ↑↑↑ 修正結束 ↑↑↑ ---
-
+    
     location = db.relationship('Location', back_populates='business_days')
     location_notes = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='NOT_STARTED')
@@ -130,6 +128,8 @@ class BusinessDay(db.Model):
     donation_total = db.Column(db.Float, default=0.0)
     other_total = db.Column(db.Float, default=0.0)
 
+    next_day_opening_cash = db.Column(db.Float, nullable=True)
+
     def __repr__(self):
         return f'<BusinessDay {self.date} - {self.location.name}>'
 
@@ -141,6 +141,11 @@ class Transaction(db.Model):
     item_count = db.Column(db.Integer, nullable=False)
     business_day_id = db.Column(db.Integer, db.ForeignKey('business_day.id'), nullable=False)
     items = db.relationship('TransactionItem', back_populates='transaction', lazy=True, cascade="all, delete-orphan")
+
+    # --- ↓↓↓ 在這裡修改欄位定義 ↓↓↓ ---
+    cash_received = db.Column(db.Float, nullable=True)
+    change_given = db.Column(db.Float, nullable=True)
+    # --- ↑↑↑ 修改結束 ↑↑↑ ---
 
     def __repr__(self):
         return f'<Transaction {self.id} - Amount: {self.amount}>'
@@ -156,6 +161,13 @@ class TransactionItem(db.Model):
 
     def __repr__(self):
         return f'<TransactionItem {self.id} - Price: {self.price}>'
+
+class DailySettlement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, unique=True)
+    total_deposit = db.Column(db.Float, nullable=True)
+    total_next_day_opening_cash = db.Column(db.Float, nullable=True)
+    remarks = db.Column(db.Text, nullable=True) # Stored as JSON
 
 class SystemSetting(db.Model):
     __tablename__ = 'system_setting'
@@ -176,3 +188,4 @@ class SystemSetting(db.Model):
             setting = SystemSetting(key=key, value=value)
             db.session.add(setting)
         db.session.commit()
+

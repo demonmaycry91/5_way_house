@@ -1,3 +1,4 @@
+# app/__init__.py
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -10,6 +11,7 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import MetaData
 # --- 修正點：匯入 LoginManager ---
 from flask_login import LoginManager
+import json
 
 load_dotenv()
 csrf = CSRFProtect()
@@ -56,12 +58,20 @@ def create_app():
     migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
-    from .routes import main_routes, ocr_routes, cashier_routes, google_routes, admin_routes
+    # --- 新增：註冊自訂的 Jinja2 過濾器 ---
+    def from_json_filter(value):
+        if value:
+            return json.loads(value)
+        return {}
+    app.jinja_env.filters['from_json'] = from_json_filter
+
+    from .routes import main_routes, ocr_routes, cashier_routes, google_routes, admin_routes, report_routes
     app.register_blueprint(main_routes.bp)
     app.register_blueprint(ocr_routes.bp)
     app.register_blueprint(cashier_routes.bp)
     app.register_blueprint(google_routes.bp)
     app.register_blueprint(admin_routes.bp)
+    app.register_blueprint(report_routes.bp)
 
     from . import models
     from . import auth_commands
