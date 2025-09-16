@@ -4,11 +4,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const displayMain = document.getElementById("display-main");
     const displaySub = document.getElementById("display-sub");
     const receiptDetails = document.getElementById("receipt-details");
-    const categoryButtons = document.querySelectorAll(".category-btn");
+    const categoryButtonsContainer = document.getElementById("category-buttons-container");
     const equalsBtn = document.getElementById("equals-btn");
     const checkoutBtn = document.getElementById("checkout-btn");
-    const donationBtn = document.getElementById("donation-btn");
-    const otherIncomeBtn = document.getElementById("other-income-btn");
 
     // --- 狀態變數 ---
     let expression = [];
@@ -19,7 +17,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let activeDiscountMode = null;
     let finalTotalForPayment = 0;
     let isTransactionComplete = false;
-    
+
     // =================================================================
     // SECTION 1: 核心計算與狀態管理函式
     // =================================================================
@@ -33,15 +31,15 @@ document.addEventListener("DOMContentLoaded", function () {
         activeDiscountMode = null;
         finalTotalForPayment = 0;
         isTransactionComplete = false;
-        
-        categoryButtons.forEach(btn => {
+
+        document.querySelectorAll(".category-btn").forEach(btn => {
             if (btn.dataset.type === 'discount_percent') {
                 btn.disabled = true;
             } else {
                 btn.disabled = false;
             }
         });
-        document.querySelectorAll(".calc-btn, #donation-btn, #other-income-btn").forEach(btn => btn.disabled = false);
+        document.querySelectorAll(".calc-btn").forEach(btn => btn.disabled = false);
 
         equalsBtn.style.display = 'block';
         checkoutBtn.style.display = 'none';
@@ -57,24 +55,29 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         return false;
     }
+    
+    function updateDashboardTotals(totalSales, totalTransactions, totalItems, donationTotal, otherTotal) {
+        document.getElementById("total-sales").innerText = `$ ${Math.round(totalSales).toLocaleString()}`;
+        document.getElementById("total-transactions").innerText = totalTransactions;
+        document.getElementById("total-items").innerText = totalItems;
+        document.getElementById("donation-total").innerText = `$ ${Math.round(donationTotal).toLocaleString()}`;
+        document.getElementById("other-total").innerText = `$ ${Math.round(otherTotal).toLocaleString()}`;
+        document.getElementById("other-income-total").innerText = `$ ${Math.round(donationTotal + otherTotal).toLocaleString()}`;
+    }
 
     function updateDisplay(subText = null) {
         const mainValue = parseFloat(currentInput) || 0;
         displayMain.innerText = mainValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
-    
-        // --- ↓↓↓ 這是本次修正的核心 (顯示邏輯) ↓↓↓ ---
+
         if (inPaymentMode || activeDiscountMode) {
-            // 進入結帳或折扣模式時，上方表達式應顯示小計
             const total = calculateCurrentTotal();
             displayExpression.innerText = `小計: ${total.toLocaleString('en-US')}`;
         } else {
-            // 正常登錄商品時，顯示完整算式
             const itemsText = transactionItems.map(item => item.displayText).join(' + ');
             const currentExpressionText = [...expression, (currentInput !== '0' || expression.length > 0) ? currentInput : ''].join(' ');
             const fullExpression = [itemsText, currentExpressionText].filter(Boolean).join(' + ').replace(/\+ -/g, '- ');
             displayExpression.innerText = fullExpression;
         }
-        // --- ↑↑↑ 修正結束 ↑↑↑ ---
 
         if (subText) {
             displaySub.innerText = subText;
@@ -87,17 +90,14 @@ document.addEventListener("DOMContentLoaded", function () {
             displaySub.innerText = `小計: ${currentTotal.toLocaleString('en-US')}`;
         }
     }
-    
-    // --- ↓↓↓ 這是本次修正的核心 (計算邏輯) ↓↓↓ ---
+
     function calculateCurrentTotal() {
         const itemsTotal = transactionItems.reduce((sum, item) => sum + item.price, 0);
 
-        // 如果正在等待輸入折扣，或已進入最終付款，則小計就是購物籃總額
         if (activeDiscountMode || inPaymentMode) {
             return itemsTotal;
         }
         
-        // 只有在第一階段（登錄商品時）才加上當前輸入的數字
         let exprString = [...expression, currentInput].join(' ');
         if (['+', '-', '*', '/'].includes(exprString.trim().slice(-1))) {
             exprString = exprString.trim().slice(0, -1);
@@ -105,8 +105,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const currentExpressionValue = safeCalculate(exprString);
         return itemsTotal + currentExpressionValue;
     }
-    // --- ↑↑↑ 修正結束 ↑↑↑ ---
-    
+
     function safeCalculate(exprStr) {
         try {
             let sanitizedExpr = String(exprStr).replace(/[^0-9.+\-*/().\s]/g, '');
@@ -117,7 +116,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return new Function('return ' + sanitizedExpr)();
         } catch { return 0; }
     }
-    
+
     // =================================================================
     // SECTION 2: 按鈕事件處理函式
     // =================================================================
@@ -147,13 +146,20 @@ document.addEventListener("DOMContentLoaded", function () {
         isReadyForNewInput = true;
         updateDisplay();
     }
+    
+    // 修正點: 將按鈕事件監聽器從各個按鈕移到父容器，並使用事件委派
+    categoryButtonsContainer.addEventListener('click', (event) => {
+        const btn = event.target.closest('.category-btn');
+        if (!btn) return;
+        handleCategoryClick(btn);
+    });
 
     function handleCategoryClick(btn) {
         if (checkAndResetAfterTransaction()) {
             handleCategoryClick(btn);
             return;
         }
-        
+
         const categoryId = btn.dataset.id;
         const categoryName = btn.dataset.name;
         const categoryType = btn.dataset.type;
@@ -163,8 +169,13 @@ document.addEventListener("DOMContentLoaded", function () {
             activateDiscountPercent(categoryId, categoryName, rules);
             return;
         }
-        
+
         if (inPaymentMode) return;
+
+        if (categoryType === 'other_income') {
+             applyOtherIncome(categoryId, categoryName);
+             return;
+        }
 
         switch(categoryType) {
             case 'product': applyProduct(categoryId, categoryName); break;
@@ -197,11 +208,10 @@ document.addEventListener("DOMContentLoaded", function () {
              enterFinalPaymentStage();
         }
     }
-    
+
     function handleUndo() {
-        if (checkAndResetAfterTransaction()) return;
         if (inPaymentMode || activeDiscountMode) return;
-        
+
         const hasActiveEntry = currentInput !== '0' || expression.length > 0;
         if (hasActiveEntry) {
             currentInput = '0';
@@ -217,7 +227,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // =================================================================
     // SECTION 3: 折扣演算法
     // =================================================================
-    
+
     function applyProduct(categoryId, categoryName) {
         const value = safeCalculate([...expression, currentInput].join(' '));
         if (value <= 0) return;
@@ -238,14 +248,37 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         expression = [];
         currentInput = '0';
-        
+
         recalculateRelevantDiscounts(categoryId);
         updateReceipt();
         updateDisplay();
     }
+    
+    async function applyOtherIncome(categoryId, categoryName) {
+        const value = safeCalculate([...expression, currentInput].join(' '));
+        if (value <= 0) {
+            updateDisplay("金額必須大於 0");
+            return;
+        }
+
+        const items = [{
+            price: value, unitPrice: value, quantity: 1,
+            category_id: categoryId, category_type: 'other_income',
+            categoryName, displayText: value.toString()
+        }];
+
+        const success = await sendTransactionToServer(items, null, null);
+
+        if (success) {
+            updateReceiptForOtherIncome(value, categoryName);
+            finalizeTransaction(true, null, null);
+        } else {
+            finalizeTransaction(false, null, null);
+        }
+    }
 
     function recalculateRelevantDiscounts(changedCategoryId) {
-        const activeDiscounts = transactionItems.filter(item => 
+        const activeDiscounts = transactionItems.filter(item =>
             item.price < 0 && item.rules && (item.rules.target_category_id == changedCategoryId || item.rules.target_category_id == 0)
         );
         activeDiscounts.forEach(discount => {
@@ -267,7 +300,7 @@ document.addEventListener("DOMContentLoaded", function () {
             handleCategoryClick({ dataset: btnDataset });
         });
     }
-    
+
     function applyDiscountFixed(categoryId, categoryName) {
         const value = safeCalculate([...expression, currentInput].join(' '));
         if (value <= 0) return;
@@ -295,7 +328,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function applyDiscountPercent() {
         if (!activeDiscountMode) return;
-        
+
         const { id, name } = activeDiscountMode;
         const subtotal = calculateCurrentTotal();
         let discountValue = parseFloat(currentInput);
@@ -304,9 +337,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         const multiplier = (discountValue < 10) ? discountValue / 10 : discountValue / 100;
         const discountAmount = -Math.round(subtotal * (1 - multiplier));
-        
+
         transactionItems = transactionItems.filter(item => item.category_id !== id);
-        
+
         if(discountAmount < 0) {
             transactionItems.push({
                 price: discountAmount, unitPrice: discountAmount, quantity: 1,
@@ -327,7 +360,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (target_category_id == 0) return item.price > 0 && item.category_type === 'product';
             return item.category_id == target_category_id && item.price > 0;
         });
-        if (eligibleItems.length === 0) { 
+        if (eligibleItems.length === 0) {
             const subText = `不符合「${categoryName}」活動資格`;
             updateDisplay(subText);
             updateReceipt(subText);
@@ -363,14 +396,14 @@ document.addEventListener("DOMContentLoaded", function () {
         updateReceipt(promptText);
         updateDisplay(subText);
     }
-    
+
     function applyBuyXGetXMinus1(categoryId, categoryName, rules) {
         const { target_category_id } = rules;
         const eligibleItems = transactionItems.filter(item => {
             if (target_category_id == 0) return item.price > 0 && item.category_type === 'product';
             return item.category_id == target_category_id && item.price > 0;
         });
-        if (eligibleItems.length === 0) { 
+        if (eligibleItems.length === 0) {
             const subText = `不符合「${categoryName}」活動資格`;
             updateDisplay(subText);
             updateReceipt(subText);
@@ -407,7 +440,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         const totalQuantity = eligibleItems.reduce((sum, item) => sum + item.quantity, 0);
         transactionItems = transactionItems.filter(item => item.category_id !== categoryId);
-        if (totalQuantity === 0) { 
+        if (totalQuantity === 0) {
             const subText = `不符合「${categoryName}」活動資格`;
             updateDisplay(subText);
             updateReceipt(subText);
@@ -452,7 +485,7 @@ document.addEventListener("DOMContentLoaded", function () {
         allIndividualItems.sort((a, b) => a.unitPrice - b.unitPrice);
         return allIndividualItems.slice(0, count).reduce((sum, item) => sum + item.unitPrice, 0);
     }
-    
+
     // =================================================================
     // SECTION 4: 結帳與收據
     // =================================================================
@@ -463,9 +496,9 @@ document.addEventListener("DOMContentLoaded", function () {
         isReadyForNewInput = true;
         expression = [];
         currentInput = '0';
-        
-        categoryButtons.forEach(btn => {
-            if (btn.dataset.type === 'discount_percent') {
+
+        document.querySelectorAll(".category-btn").forEach(btn => {
+            if (btn.dataset.type === 'discount_percent' || btn.dataset.type === 'other_income') {
                 btn.disabled = false;
             } else {
                 btn.disabled = true;
@@ -478,27 +511,45 @@ document.addEventListener("DOMContentLoaded", function () {
         finalTotalForPayment = calculateCurrentTotal();
         equalsBtn.style.display = 'none';
         checkoutBtn.style.display = 'block';
-        categoryButtons.forEach(btn => btn.disabled = true);
+        document.querySelectorAll(".category-btn").forEach(btn => btn.disabled = true);
         updateDisplay();
     }
-    
+
     async function handleCheckout(paidAmount = null) {
-    const amountPaid = paidAmount ?? parseFloat(currentInput);
-    if (isNaN(amountPaid) || amountPaid < finalTotalForPayment) {
-        return updateDisplay(`金額不足，應收: ${finalTotalForPayment.toLocaleString('en-US')}`);
+        const amountPaid = paidAmount ?? parseFloat(currentInput);
+        if (isNaN(amountPaid) || amountPaid < finalTotalForPayment) {
+            return updateDisplay(`金額不足，應收: ${finalTotalForPayment.toLocaleString('en-US')}`);
+        }
+
+        const change = amountPaid - finalTotalForPayment;
+
+        const success = await sendTransactionToServer(transactionItems, amountPaid, change);
+
+        if (success) {
+            updateReceiptForCheckout(amountPaid, finalTotalForPayment);
+            finalizeTransaction(true, amountPaid, change);
+        } else {
+            finalizeTransaction(false, null, null);
+        }
     }
 
-    // --- ↓↓↓ 修正點：在這裡呼叫 sendTransactionToServer 時傳入 paidAmount 和 change ↓↓↓ ---
-    const change = amountPaid - finalTotalForPayment;
-    await sendTransactionToServer(amountPaid, change);
-    // --- ↑↑↑ 修正結束 ↑↑↑ ---
-
-    currentInput = amountPaid.toString();
-    updateDisplay(`找零: ${change.toLocaleString('en-US')}`);
-    updateReceiptForCheckout(amountPaid, finalTotalForPayment);
-
-    isTransactionComplete = true;
-}
+    function finalizeTransaction(success, paidAmount, changeReceived) {
+        isTransactionComplete = success;
+        if (success) {
+            currentInput = (paidAmount !== null) ? paidAmount.toString() : '0';
+            const changeText = (changeReceived !== null) ? `找零: ${changeReceived.toLocaleString('en-US')}` : '';
+            updateDisplay(changeText);
+        } else {
+            updateDisplay(`交易失敗`);
+        }
+        
+        // 交易完成後，重設所有狀態
+        if (isTransactionComplete) {
+            setTimeout(() => {
+                resetCalculator();
+            }, 1500);
+        }
+    }
     
     function updateReceipt(promptText = null) {
         receiptDetails.className = '';
@@ -507,10 +558,13 @@ document.addEventListener("DOMContentLoaded", function () {
             receiptDetails.innerHTML = '<span class="text-muted">暫無商品</span>';
             return;
         }
-        
+
+        const isOtherIncome = transactionItems.length > 0 && transactionItems[0].category_type === 'other_income';
+        const headerTitle = isOtherIncome ? '項目' : '商品';
+
         let headerHtml = `
             <div class="receipt-line receipt-header">
-                <div class="flex-grow-1">商品</div>
+                <div class="flex-grow-1">${headerTitle}</div>
                 <div style="width: 50px;" class="text-center">數量</div>
                 <div style="width: 70px;" class="text-end">單價</div>
                 <div style="width: 80px;" class="text-end">金額</div>
@@ -535,7 +589,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (promptText) {
             promptHtml = `<div class="receipt-prompt">${promptText}</div>`;
         }
-        
+
         receiptDetails.innerHTML = `<div>${headerHtml}<div class="item-list">${itemsHtml}</div></div>${promptHtml}`;
         receiptDetails.scrollTop = receiptDetails.scrollHeight;
     }
@@ -579,66 +633,6 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>`;
     }
     
-    // =================================================================
-    // SECTION 5: 伺服器通訊
-    // =================================================================
-    async function sendTransactionToServer(paidAmount, changeReceived) {
-    const expandedItems = [];
-    transactionItems.forEach(item => {
-        for (let i = 0; i < item.quantity; i++) {
-            expandedItems.push({ price: item.unitPrice, category_id: item.category_id, category_type: item.category_type });
-        }
-    });
-    try {
-        const response = await fetch("/cashier/record_transaction", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            // --- ↓↓↓ 修正點：在 body 中新增 cash_received 和 change_given ↓↓↓ ---
-            body: JSON.stringify({ 
-                location_slug: POS_LOCATION_SLUG, 
-                items: expandedItems,
-                cash_received: paidAmount, // 新增
-                change_given: changeReceived // 新增
-            }),
-            // --- ↑↑↑ 修正結束 ↑↑↑ ---
-        });
-        if (!response.ok) throw new Error("網路回應不正確");
-        const result = await response.json();
-        if (result.success) {
-            document.getElementById("total-sales").innerText = `$ ${Math.round(result.total_sales).toLocaleString()}`;
-            document.getElementById("total-transactions").innerText = result.total_transactions;
-            document.getElementById("total-items").innerText = result.total_items;
-        } else { updateDisplay(`傳送失敗: ${result.error}`); }
-    } catch (error) { console.error("結帳時發生錯誤:", error); updateDisplay("傳送失敗"); }
-}
-    
-    async function sendOtherIncomeToServer(amount, type) {
-        try {
-            const response = await fetch("/cashier/record_other_income", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ location_slug: POS_LOCATION_SLUG, amount, type }),
-            });
-            if (!response.ok) throw new Error("網路回應不正確");
-            const result = await response.json();
-            if (result.success) {
-                document.getElementById("donation-total").innerText = `$ ${Math.round(result.donation_total).toLocaleString()}`;
-                document.getElementById("other-total").innerText = `$ ${Math.round(result.other_total).toLocaleString()}`;
-                const totalOtherIncome = (result.donation_total || 0) + (result.other_total || 0);
-                document.getElementById("other-income-total").innerText = `$ ${Math.round(totalOtherIncome).toLocaleString()}`;
-            }
-        } catch (error) { console.error("記錄其他收入時發生錯誤:", error); }
-    }
-
-    async function handleOtherIncome(type) {
-        if (checkAndResetAfterTransaction()) return;
-        const value = safeCalculate([...expression, currentInput].join(' '));
-        if (value <= 0) return;
-        await sendOtherIncomeToServer(value, type);
-        const typeText = type === 'donation' ? '愛心捐款' : '其他收入';
-        updateReceiptForOtherIncome(value, typeText);
-        updateDisplay(`${typeText} ${value.toLocaleString()} 已記錄`);
-        isTransactionComplete = true;
-    }
-
     function updateReceiptForOtherIncome(amount, title) {
         receiptDetails.className = 'd-flex justify-content-center align-items-center h-100';
         receiptDetails.innerHTML = `
@@ -651,6 +645,52 @@ document.addEventListener("DOMContentLoaded", function () {
                     <span class="fw-bold">${amount.toLocaleString()}</span>
                 </div>
             </div>`;
+    }
+
+    // =================================================================
+    // SECTION 5: 伺服器通訊
+    // =================================================================
+    // 修正點：將 items 作為參數傳入，以避免非同步問題
+    async function sendTransactionToServer(items, paidAmount, changeReceived) {
+        const expandedItems = [];
+        items.forEach(item => {
+            for (let i = 0; i < item.quantity; i++) {
+                expandedItems.push({ price: item.unitPrice, category_id: item.category_id });
+            }
+        });
+        
+        try {
+            const response = await fetch("/cashier/record_transaction", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    location_slug: POS_LOCATION_SLUG, 
+                    items: expandedItems,
+                    cash_received: paidAmount,
+                    change_given: changeReceived
+                }),
+            });
+
+            if (!response.ok) throw new Error("網路回應不正確");
+
+            const result = await response.json();
+            if (result.success) {
+                updateDashboardTotals(
+                    result.total_sales,
+                    result.total_transactions,
+                    result.total_items,
+                    result.donation_total,
+                    result.other_total
+                );
+                return true;
+            } else {
+                updateDisplay(`傳送失敗: ${result.error}`);
+                return false;
+            }
+        } catch (error) {
+            console.error("結帳時發生錯誤:", error);
+            updateDisplay("傳送失敗");
+            return false;
+        }
     }
     
     // =================================================================
@@ -668,12 +708,38 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDisplay();
     });
 
-    categoryButtons.forEach(btn => btn.addEventListener('click', () => handleCategoryClick(btn)));
     equalsBtn.addEventListener('click', handleEquals);
     checkoutBtn.addEventListener('click', () => handleCheckout());
 
-    if (donationBtn) donationBtn.addEventListener('click', () => handleOtherIncome('donation'));
-    if (otherIncomeBtn) otherIncomeBtn.addEventListener('click', () => handleOtherIncome('other'));
+    // 修正點：修復硬編碼按鈕的事件監聽器，讓它們正確呼叫 handleCategoryClick
+    const donationBtn = document.getElementById("donation-btn");
+    if (donationBtn) {
+      donationBtn.addEventListener('click', () => {
+        // 這裡需要從按鈕的屬性中提取 id 和 name
+        const categoryId = donationBtn.dataset.id;
+        const categoryName = donationBtn.dataset.name;
+        // 如果沒有這些屬性，則需要先在 HTML 中添加
+        if (!categoryId || !categoryName) {
+           console.error("捐款按鈕缺少 data-id 或 data-name 屬性");
+           return;
+        }
+        // 構造一個模擬的按鈕物件來呼叫 handleCategoryClick
+        handleCategoryClick({ dataset: { id: categoryId, name: categoryName, type: 'other_income', rules: '{}' } });
+      });
+    }
+
+    const otherIncomeBtn = document.getElementById("other-income-btn");
+    if (otherIncomeBtn) {
+      otherIncomeBtn.addEventListener('click', () => {
+        const categoryId = otherIncomeBtn.dataset.id;
+        const categoryName = otherIncomeBtn.dataset.name;
+        if (!categoryId || !categoryName) {
+           console.error("其他收入按鈕缺少 data-id 或 data-name 屬性");
+           return;
+        }
+        handleCategoryClick({ dataset: { id: categoryId, name: categoryName, type: 'other_income', rules: '{}' } });
+      });
+    }
 
     resetCalculator();
 });

@@ -81,6 +81,7 @@ class Category(db.Model):
     color = db.Column(db.String(7), nullable=False, default='#cccccc')
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
     
+    # --- 修正點：新增 'other_income' 類別類型 ---
     category_type = db.Column(db.String(30), nullable=False, default='product', server_default='product')
     discount_rules = db.Column(db.Text, nullable=True)
 
@@ -125,9 +126,10 @@ class BusinessDay(db.Model):
     transactions = db.relationship('Transaction', backref='business_day', lazy=True, cascade="all, delete-orphan")
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    donation_total = db.Column(db.Float, default=0.0)
-    other_total = db.Column(db.Float, default=0.0)
-
+    # --- 刪除點：移除獨立的捐款與其他收入欄位 ---
+    # donation_total = db.Column(db.Float, default=0.0)
+    # other_total = db.Column(db.Float, default=0.0)
+    
     next_day_opening_cash = db.Column(db.Float, nullable=True)
 
     def __repr__(self):
@@ -188,4 +190,3 @@ class SystemSetting(db.Model):
             setting = SystemSetting(key=key, value=value)
             db.session.add(setting)
         db.session.commit()
-

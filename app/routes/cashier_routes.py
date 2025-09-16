@@ -21,6 +21,8 @@ from sqlalchemy.orm import contains_eager
 from sqlalchemy import and_
 from ..decorators import admin_required
 from weasyprint import HTML
+from sqlalchemy.sql import func
+from sqlalchemy import case
 
 bp = Blueprint("cashier", __name__, url_prefix="/cashier")
 
@@ -54,10 +56,29 @@ def dashboard():
     for location in locations:
         business_day = next(iter(location.business_days), None)
         status_info = {}
+        # 修正點：動態計算捐款與其他收入總額
+        donation_total = 0
+        other_total = 0
+        total_sales_with_income = business_day.total_sales if business_day else 0
+        if business_day:
+            other_income_totals = db.session.query(
+                Category.name,
+                func.sum(TransactionItem.price)
+            ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+                BusinessDay.id == business_day.id,
+                Category.category_type == 'other_income'
+            ).group_by(Category.name).all()
+            for name, total in other_income_totals:
+                total_sales_with_income += total
+                if name == '捐款':
+                    donation_total = total
+                else:
+                    other_total += total
+
         if business_day is None:
             status_info = { "status_text": "尚未開帳", "message": "點擊以開始本日營業作業。", "badge_class": "bg-secondary", "url": url_for("cashier.start_day", location_slug=location.slug) }
         elif business_day.status == "OPEN":
-            status_info = { "status_text": "營業中", "message": f"本日銷售額: ${business_day.total_sales or 0:,.0f}", "badge_class": "bg-success", "url": url_for("cashier.pos", location_slug=location.slug) }
+            status_info = { "status_text": "營業中", "message": f"本日銷售額: ${total_sales_with_income:,.0f}", "badge_class": "bg-success", "url": url_for("cashier.pos", location_slug=location.slug) }
         elif business_day.status == "PENDING_REPORT":
             status_info = { "status_text": "待確認報表", "message": "點擊以檢視並確認本日報表。", "badge_class": "bg-warning text-dark", "url": url_for("cashier.daily_report", location_slug=location.slug) }
         elif business_day.status == "CLOSED":
@@ -76,7 +97,6 @@ def login():
             flash("帳號或密碼錯誤，請重新輸入。", "danger")
             return redirect(url_for("cashier.login"))
         login_user(user)
-        flash("登入成功！", "success")
         next_page = request.args.get("next")
         return redirect(next_page or url_for("cashier.dashboard"))
     return render_template("cashier/login.html", form=form)
@@ -168,11 +188,33 @@ def pos(location_slug):
     
     categories = Category.query.filter_by(location_id=location.id).order_by(Category.id).all()
     
+    # 修正點：從交易紀錄中動態計算其他收入總額
+    from sqlalchemy.sql import func
+    from sqlalchemy import case
+    
+    other_income_totals = db.session.query(
+        Category.name,
+        func.sum(TransactionItem.price)
+    ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+        BusinessDay.id == business_day.id,
+        Category.category_type == 'other_income'
+    ).group_by(Category.name).all()
+    
+    donation_total = 0
+    other_total = 0
+    for name, total in other_income_totals:
+        if name == '捐款':
+            donation_total = total
+        else:
+            other_total += total
+    
     return render_template("cashier/pos.html", 
                            location=location, 
                            today_date=today.strftime("%Y-%m-%d"), 
                            business_day=business_day,
-                           categories=categories)
+                           categories=categories,
+                           donation_total=donation_total,
+                           other_total=other_total)
 
 @bp.route("/record_transaction", methods=["POST"])
 @csrf.exempt
@@ -183,10 +225,8 @@ def record_transaction():
     items = data.get("items", [])
     today = date.today()
 
-    # --- ↓↓↓ 新增接收邏輯 --- ↓↓↓
     cash_received = data.get("cash_received")
     change_given = data.get("change_given")
-    # --- ↑↑↑ 新增結束 ↑↑↑ ---
 
     if not items:
         return jsonify({"success": False, "error": "交易內容不可為空"}), 400
@@ -198,16 +238,22 @@ def record_transaction():
             return jsonify({"success": False, "error": "找不到對應的營業中紀錄"}), 404
 
         total_amount = sum(item['price'] for item in items)
-        item_count = sum(1 for item in items if item['price'] > 0)
+        
+        # 修正點：分開計算銷售額和項目總數，因為其他收入不算銷售額和項目數
+        total_sales_amount = 0
+        total_items_count = 0
+        for item in items:
+            category = Category.query.get(item['category_id'])
+            if category and category.category_type == 'product':
+                total_sales_amount += item['price']
+                total_items_count += 1
 
         new_transaction = Transaction(
             amount=total_amount, 
             item_count=len(items),
             business_day_id=business_day.id,
-            # --- ↓↓↓ 新增儲存邏輯 --- ↓↓↓
             cash_received=cash_received,
             change_given=change_given
-            # --- ↑↑↑ 新增結束 ↑↑↑ ---
         )
         db.session.add(new_transaction)
         
@@ -219,54 +265,42 @@ def record_transaction():
             )
             db.session.add(transaction_item)
 
-        business_day.total_sales = (business_day.total_sales or 0) + total_amount
-        business_day.total_items = (business_day.total_items or 0) + item_count
+        business_day.total_sales = (business_day.total_sales or 0) + total_sales_amount
+        business_day.total_items = (business_day.total_items or 0) + total_items_count
         business_day.total_transactions = (business_day.total_transactions or 0) + 1
         
         db.session.commit()
         
+        # 修正點：重新查詢當日其他收入總額，以傳回給前端
+        from sqlalchemy.sql import func
+        from sqlalchemy import case
+        other_income_totals = db.session.query(
+            Category.name,
+            func.sum(TransactionItem.price)
+        ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+            BusinessDay.id == business_day.id,
+            Category.category_type == 'other_income'
+        ).group_by(Category.name).all()
+        
+        donation_total = 0
+        other_total = 0
+        for name, total in other_income_totals:
+            if name == '捐款':
+                donation_total = total
+            else:
+                other_total += total
+
         return jsonify({
             "success": True,
             "total_sales": business_day.total_sales,
             "total_items": business_day.total_items,
             "total_transactions": business_day.total_transactions,
+            "donation_total": donation_total,
+            "other_total": other_total,
         })
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"記錄交易時發生錯誤: {e}", exc_info=True)
-        return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
-
-@bp.route("/record_other_income", methods=["POST"])
-@csrf.exempt
-@login_required
-def record_other_income():
-    data = request.get_json()
-    location_slug = data.get("location_slug")
-    amount = data.get("amount")
-    income_type = data.get("type", "other")
-    today = date.today()
-
-    try:
-        location = Location.query.filter_by(slug=location_slug).first()
-        business_day = BusinessDay.query.filter_by(date=today, location_id=location.id, status="OPEN").first()
-        if not business_day:
-            return jsonify({"success": False, "error": "找不到對應的營業中紀錄"}), 404
-
-        if income_type == 'donation':
-            business_day.donation_total = (business_day.donation_total or 0) + amount
-        else:
-            business_day.other_total = (business_day.other_total or 0) + amount
-        
-        db.session.commit()
-
-        return jsonify({
-            "success": True,
-            "donation_total": business_day.donation_total,
-            "other_total": business_day.other_total,
-        })
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"記錄其他收入時發生錯誤: {e}", exc_info=True)
         return jsonify({"success": False, "error": "伺服器內部錯誤"}), 500
 
 @bp.route("/close_day/<location_slug>", methods=["GET", "POST"])
@@ -312,7 +346,17 @@ def daily_report(location_slug):
     closing_cash = business_day.closing_cash or 0
     opening_cash = business_day.opening_cash or 0
     total_sales = business_day.total_sales or 0
-    expected_total = opening_cash + total_sales
+    
+    # 修正點：從交易紀錄中計算其他收入並計入 expected_total
+    from sqlalchemy.sql import func
+    other_income_total = db.session.query(
+        func.sum(TransactionItem.price)
+    ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+        BusinessDay.id == business_day.id,
+        Category.category_type == 'other_income'
+    ).scalar() or 0
+    
+    expected_total = opening_cash + total_sales + other_income_total
     difference = closing_cash - expected_total
     form = ConfirmReportForm()
     return render_template("cashier/daily_report.html", day=business_day, 帳面總額=expected_total, 帳差=difference, form=form)
@@ -334,8 +378,18 @@ def confirm_report(location_slug):
             business_day.signature_cashier = request.form.get('sig_cashier')
             
             business_day.status = "CLOSED"
-            business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0)
+            
+            # 修正點：從交易紀錄中計算其他收入並計入 expected_cash
+            from sqlalchemy.sql import func
+            other_income_total = db.session.query(
+                func.sum(TransactionItem.price)
+            ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+                BusinessDay.id == business_day.id,
+                Category.category_type == 'other_income'
+            ).scalar() or 0
+            business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0) + other_income_total
             business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
+            
             db.session.commit()
             header = ["日期", "據點", "開店準備金", "本日銷售總額", "帳面總額", "盤點現金合計", "帳差", "交易筆數", "銷售件數"]
             report_data = [business_day.date.strftime("%Y-%m-%d"), business_day.location.name, business_day.opening_cash, business_day.total_sales, business_day.expected_cash, business_day.closing_cash, business_day.cash_diff, business_day.total_transactions, business_day.total_items]
@@ -358,10 +412,19 @@ def print_report(location_slug):
     closing_cash = business_day.closing_cash or 0
     opening_cash = business_day.opening_cash or 0
     total_sales = business_day.total_sales or 0
-    expected_total = opening_cash + total_sales
+    
+    # 修正點：從交易紀錄中計算其他收入並計入 expected_total
+    from sqlalchemy.sql import func
+    other_income_total = db.session.query(
+        func.sum(TransactionItem.price)
+    ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+        BusinessDay.id == business_day.id,
+        Category.category_type == 'other_income'
+    ).scalar() or 0
+    
+    expected_total = opening_cash + total_sales + other_income_total
     difference = closing_cash - expected_total
     signatures = {'operator': request.form.get('sig_operator'), 'reviewer': request.form.get('sig_reviewer'), 'cashier': request.form.get('sig_cashier')}
     html_to_render = render_template("cashier/report_print.html", day=business_day, 帳面總額=expected_total, 帳差=difference, signatures=signatures)
     pdf = HTML(string=html_to_render).write_pdf()
     return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f"attachment;filename=daily_report_{location.slug}_{today.strftime('%Y%m%d')}.pdf"})
-
