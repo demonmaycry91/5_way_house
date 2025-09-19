@@ -118,11 +118,33 @@ def query():
         elif report_type in ['daily_cash_summary', 'daily_cash_check']:
             results = query_base.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
             if results:
+                # 重新動態計算 donation_total 和 other_total，以避免 AttributeError
+                for r in results:
+                    other_income_totals = db.session.query(
+                        Category.name,
+                        func.sum(TransactionItem.price)
+                    ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+                        BusinessDay.id == r.id,
+                        Category.category_type == 'other_income'
+                    ).group_by(Category.name).all()
+                    
+                    r.donation_total = 0
+                    r.other_total = 0
+                    for name, total in other_income_totals:
+                        if name == '捐款':
+                            r.donation_total = total
+                        else:
+                            r.other_total += total
+                
                 grand_total_dict = {
-                    'opening_cash': sum(r.opening_cash or 0 for r in results), 'total_sales': sum(r.total_sales or 0 for r in results),
-                    'expected_cash': sum(r.expected_cash or 0 for r in results), 'closing_cash': sum(r.closing_cash or 0 for r in results),
-                    'cash_diff': sum(r.cash_diff or 0 for r in results), 'donation_total': sum(r.donation_total or 0 for r in results),
-                    'other_total': sum(r.other_total or 0 for r in results), 'location_notes': ""
+                    'opening_cash': sum(r.opening_cash or 0 for r in results),
+                    'total_sales': sum(r.total_sales or 0 for r in results),
+                    'expected_cash': sum(r.expected_cash or 0 for r in results),
+                    'closing_cash': sum(r.closing_cash or 0 for r in results),
+                    'cash_diff': sum(r.cash_diff or 0 for r in results),
+                    'donation_total': sum(r.donation_total or 0 for r in results),
+                    'other_total': sum(r.other_total or 0 for r in results),
+                    'location_notes': ""
                 }
                 grand_total_dict['other_cash'] = grand_total_dict['donation_total'] + grand_total_dict['other_total']
                 class GrandTotal:
