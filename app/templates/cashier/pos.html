@@ -9,19 +9,25 @@
     #receipt-details {
         font-size: 0.95rem;
     }
+
     /* 交易明細中每一行的通用樣式 */
     .receipt-line {
         display: flex;
         justify-content: space-between;
-        padding: 0.4rem 0.75rem; /* 統一內邊距 */
+        padding: 0.4rem 0.75rem;
+        /* 統一內邊距 */
     }
+
     /* 交易明細的標頭樣式 */
     .receipt-header {
-        font-weight: bold; /* 1. 標頭加粗 */
-        color: #6c757d;   /* 文字調暗 */
+        font-weight: bold;
+        /* 1. 標頭加粗 */
+        color: #6c757d;
+        /* 文字調暗 */
         font-size: 0.9rem;
         border-bottom: 1px solid #dee2e6;
     }
+
     /* 提示訊息的樣式 */
     .receipt-prompt {
         padding: 0.5rem 0;
@@ -29,7 +35,8 @@
         font-weight: bold;
         color: #0d6efd;
         border-top: 1px solid #dee2e6;
-        margin: 0 0.75rem; /* 讓分隔線不會碰到左右邊框 */
+        margin: 0 0.75rem;
+        /* 讓分隔線不會碰到左右邊框 */
     }
 </style>
 {% endblock %}
@@ -65,19 +72,80 @@ button_text='返回儀表板'
                 <div class="row g-2" id="keypad-grid">
                     {# --- 商品類別按鈕區 --- #}
                     <div class="col-12" id="category-buttons-container">
+                        {# --- 一般商品類別按鈕區 --- #}
                         <div class="row g-2">
                             {% for category in categories %}
+                            {% if category.category_type == 'product' %}
                             <div class="col-4 d-grid">
                                 <button class="btn btn-lg category-btn"
                                     style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"
-                                    data-id="{{ category.id }}"
-                                    data-name="{{ category.name }}"
+                                    data-id="{{ category.id }}" data-name="{{ category.name }}"
                                     data-type="{{ category.category_type }}"
                                     data-rules='{{ category.discount_rules or "{}" }}'>
                                     {{ category.name }}
                                 </button>
-                                </div>
+                            </div>
+                            {% endif %}
                             {% endfor %}
+                        </div>
+                        <div class="col-12" id="keypad-divider">
+                            <hr class="my-2">
+                        </div>
+                        {# --- 折扣類別按鈕區 --- #}
+                        <div class="row g-2">
+                            {% for category in categories %}
+                            {% if category.category_type != 'product' and category.category_type != 'other_income' %}
+                            <div class="col-4 d-grid">
+                                <button class="btn btn-lg category-btn"
+                                    style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"
+                                    data-id="{{ category.id }}" data-name="{{ category.name }}"
+                                    data-type="{{ category.category_type }}"
+                                    data-rules='{{ category.discount_rules or "{}" }}'>
+                                    {{ category.name }}
+                                </button>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        <div class="col-12" id="keypad-divider">
+                            <hr class="my-2">
+                        </div>
+                        {# --- 其他收入按鈕區 --- #}
+                        <div class="col-12 mt-2">
+                            <div class="row g-2">
+                                {% set other_income_categories = categories | selectattr('category_type', '==',
+                                'other_income') | list %}
+                                {% set button_count = other_income_categories | length %}
+
+                                {% if button_count <= 4 %} {# 如果按鈕數量為4個或以內，則動態調整欄寬，讓它們顯示在同一行 #} {% set col_class=12 //
+                                    button_count if button_count> 0 else 12 %}
+                                    {% set col_width = 'col-' ~ col_class %}
+                                    {% for category in other_income_categories %}
+                                    <div class="{{ col_width }} d-grid">
+                                        <button class="btn btn-lg category-btn"
+                                            style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"
+                                            data-id="{{ category.id }}" data-name="{{ category.name }}"
+                                            data-type="{{ category.category_type }}"
+                                            data-rules='{{ category.discount_rules or "{}" }}'>
+                                            {{ category.name }}
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                    {% else %}
+                                    {# 如果超過4個，每行顯示3個按鈕 #}
+                                    {% for category in other_income_categories %}
+                                    <div class="col-4 d-grid">
+                                        <button class="btn btn-lg category-btn"
+                                            style="background-color: {{ category.color }}; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"
+                                            data-id="{{ category.id }}" data-name="{{ category.name }}"
+                                            data-type="{{ category.category_type }}"
+                                            data-rules='{{ category.discount_rules or "{}" }}'>
+                                            {{ category.name }}
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                            </div>
                         </div>
                     </div>
 
@@ -133,14 +201,6 @@ button_text='返回儀表板'
                         <button id="equals-btn" class="btn btn-lg btn-primary" data-action="equals">=</button>
                         <button id="checkout-btn" class="btn btn-lg btn-success" style="display: none;">收款結帳</button>
                     </div>
-
-
-                    <div class="col-6 d-grid mt-2">
-                        <button id="donation-btn" class="btn btn-lg btn-warning">捐款</button>
-                    </div>
-                    <div class="col-6 d-grid mt-2">
-                        <button id="other-income-btn" class="btn btn-lg btn-info">其他</button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -153,8 +213,8 @@ button_text='返回儀表板'
                 <span>交易明細</span>
             </div>
             <div id="receipt-details" class="flex-grow-1 p-2" style="overflow-y: auto; scrollbar-gutter: stable;">
-            <div class="text-center text-muted m-auto">暫無商品</div>
-        </div>
+                <div class="text-center text-muted m-auto">暫無商品</div>
+            </div>
         </div>
 
         <div class="card text-center mb-3">

@@ -11,14 +11,16 @@ from flask import (
     current_app,
     Response
 )
+
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem
+from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem, Role, Permission
 from .. import db, login_manager, csrf
-from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm
+from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm, LocationForm, UserForm, RoleForm, CategoryForm
 from datetime import date, datetime
 from ..services import google_service
 from sqlalchemy.orm import contains_eager
 from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError # 新增此行
 from ..decorators import admin_required
 from weasyprint import HTML
 from sqlalchemy.sql import func
@@ -73,6 +75,9 @@ def delete_location(location_id):
     flash('據點已刪除', 'success')
     return redirect(url_for('admin.list_locations'))
 
+# --- 商品類別管理 ---
+@bp.route('/locations/<int:location_id>/categories', methods=['GET', 'POST'])
+@csrf.exempt
 # --- 商品類別管理 ---
 @bp.route('/locations/<int:location_id>/categories', methods=['GET', 'POST'])
 @csrf.exempt
@@ -155,6 +160,7 @@ def list_categories(location_id):
     categories = Category.query.filter_by(location_id=location.id).order_by(Category.id).all()
     return render_template('admin/categories.html', location=location, categories=categories, product_categories_choices=product_categories_choices)
 
+
 def get_category_form_data(form, category):
     category.name = form.name.data
     category.color = form.color.data
@@ -210,12 +216,26 @@ def edit_category(category_id):
 def delete_category(category_id):
     category = Category.query.get_or_404(category_id)
     location_id = category.location_id
-    if category.items:
+    
+    # 檢查是否有任何交易項目關聯此類別
+    if TransactionItem.query.filter_by(category_id=category_id).first():
         flash(f'錯誤：無法刪除類別 "{category.name}"，因為已有交易紀錄使用此類別。', 'danger')
-    else:
+        return redirect(url_for('admin.list_categories', location_id=location_id))
+        
+    # 檢查是否有任何折扣規則關聯此類別
+    if Category.query.filter(Category.discount_rules.like(f'%"{category_id}"%')).first():
+        flash(f'錯誤：無法刪除類別 "{category.name}"，因為它被其他折扣規則所引用。', 'danger')
+        return redirect(url_for('admin.list_categories', location_id=location_id))
+
+    try:
         db.session.delete(category)
         db.session.commit()
         flash('類別已刪除。', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'刪除失敗，發生未預期錯誤：{e}', 'danger')
+        current_app.logger.error(f"刪除類別 {category_id} 時發生錯誤: {e}", exc_info=True)
+
     return redirect(url_for('admin.list_categories', location_id=location_id))
 
 # --- 使用者與角色管理 (維持不變) ---

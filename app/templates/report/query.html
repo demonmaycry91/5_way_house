@@ -292,7 +292,15 @@
                                         {% endfor %}
                                     </select>
                                 </td>
-                                <td><span class="badge {{ 'bg-success' if item.price > 0 else 'bg-danger' }}">{{ '商品' if item.price > 0 else '折扣' }}</span></td>
+                                <td>
+    {% if item.category.category_type == 'other_income' %}
+    <span class="badge bg-info">其他收入</span>
+    {% elif item.price > 0 %}
+    <span class="badge bg-success">商品</span>
+    {% else %}
+    <span class="badge bg-danger">折扣</span>
+    {% endif %}
+</td>
                                 <td class="text-end editable-cell" data-item-id="{{ item.id }}" data-field="item_price">
                                     <span class="display-value currency-field">${{ "{:,.0f}".format(item.price) }}</span>
                                     <input type="number" class="text-end editable-input currency-field" value="{{ item.price }}">
