@@ -106,6 +106,7 @@
                                     <option value="buy_n_get_m" {% if category.category_type == 'buy_n_get_m' %}selected{% endif %}>買N送M</option>
                                     <option value="buy_x_get_x_minus_1" {% if category.category_type == 'buy_x_get_x_minus_1' %}selected{% endif %}>買X送X-1</option>
                                     <option value="buy_odd_even" {% if category.category_type == 'buy_odd_even' %}selected{% endif %}>成雙優惠</option>
+                                    <option value="other_income" {% if category.category_type == 'other_income' %}selected{% endif %}>其他收入</option>
                                 </select>
                             </td>
                             <td><input type="color" name="category-{{ category.id }}-color" value="{{ category.color }}" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
@@ -148,6 +149,7 @@
                                      <option value="buy_n_get_m">買N送M</option>
                                      <option value="buy_x_get_x_minus_1">買X送X-1</option>
                                      <option value="buy_odd_even">成雙優惠</option>
+                                     <option value="other_income">其他收入</option>
                                  </select>
                              </td>
                              <td><input type="color" name="new-color" value="#cccccc" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
@@ -195,7 +197,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'discount_percent': '對整筆交易總額打折',
         'buy_n_get_m': '固定數量組合優惠 (買N送M)',
         'buy_x_get_x_minus_1': '動態優惠 (買X件送X-1件)',
-        'buy_odd_even': '成雙優惠 (買奇數件更划算)'
+        'buy_odd_even': '成雙優惠 (買奇數件更划算)',
+        'other_income': '非銷售收入 (例如捐款)'
     };
 
     function updateRowUI(row) {

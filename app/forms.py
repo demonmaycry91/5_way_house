@@ -33,7 +33,8 @@ class CategoryForm(FlaskForm):
             ('discount_percent', '百分比折扣 (乘法)'),
             ('buy_n_get_m', '買 N 送 M (固定)'),
             ('buy_x_get_x_minus_1', '買 X 送 X-1 (動態)'),
-            ('buy_odd_even', '成雙優惠 (奇數件)')
+            ('buy_odd_even', '成雙優惠 (奇數件)'),
+            ('other_income', '其他收入')
         ],
         validators=[DataRequired()]
     )

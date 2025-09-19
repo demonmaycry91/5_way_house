@@ -1,11 +1,29 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required
-from ..models import Location, User, Role, Permission, Category
-from .. import db
-from ..forms import LocationForm, RoleForm, UserForm, CategoryForm
-from ..decorators import admin_required
+import os
 import json
-from .. import db, csrf # 新增 csrf
+from flask import (
+    render_template,
+    request,
+    flash,
+    redirect,
+    url_for,
+    Blueprint,
+    jsonify,
+    current_app,
+    Response
+)
+from flask_login import login_user, logout_user, login_required, current_user
+from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem
+from .. import db, login_manager, csrf
+from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm
+from datetime import date, datetime
+from ..services import google_service
+from sqlalchemy.orm import contains_eager
+from sqlalchemy import and_
+from ..decorators import admin_required
+from weasyprint import HTML
+from sqlalchemy.sql import func
+from sqlalchemy import case
+
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -57,7 +75,7 @@ def delete_location(location_id):
 
 # --- 商品類別管理 ---
 @bp.route('/locations/<int:location_id>/categories', methods=['GET', 'POST'])
-@csrf.exempt # 新增此行以豁免 CSRF 保護
+@csrf.exempt
 def list_categories(location_id):
     location = Location.query.get_or_404(location_id)
     product_categories_query = Category.query.filter_by(location_id=location.id, category_type='product').all()
@@ -65,8 +83,6 @@ def list_categories(location_id):
 
     if request.method == 'POST':
         try:
-            # --- ↓↓↓ 這是修正後更穩健的儲存邏輯 ↓↓↓ ---
-            
             # 處理現有類別的更新
             for category in location.categories:
                 cat_id = category.id
@@ -130,7 +146,6 @@ def list_categories(location_id):
             
             db.session.commit()
             flash('所有變更已成功儲存！', 'success')
-            # --- ↑↑↑ 儲存邏輯修正結束 ↑↑↑ ---
         except Exception as e:
             db.session.rollback()
             flash(f'儲存失敗，發生錯誤：{e}', 'danger')
@@ -139,7 +154,6 @@ def list_categories(location_id):
 
     categories = Category.query.filter_by(location_id=location.id).order_by(Category.id).all()
     return render_template('admin/categories.html', location=location, categories=categories, product_categories_choices=product_categories_choices)
-
 
 def get_category_form_data(form, category):
     category.name = form.name.data
