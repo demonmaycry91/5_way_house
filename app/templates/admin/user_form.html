@@ -33,7 +33,12 @@
                     <div class="mb-3">
                         {{ form.roles.label(class="form-label") }}
                         <div class="border rounded p-2">
-                           {{ form.roles }}
+                           {% for subfield in form.roles %}
+                               <div class="form-check">
+                                   {{ subfield(class="form-check-input") }}
+                                   {{ subfield.label(class="form-check-label") }}
+                               </div>
+                           {% endfor %}
                         </div>
                     </div>
                     <div class="d-grid">
