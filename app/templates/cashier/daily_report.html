@@ -20,7 +20,7 @@
 {% else %}
     {{ page_header(
         title='每日報表',
-        subtitle='據點：' ~ day.location.name ~ ' | 日期：' ~ day.date.strftime('%Y-%m-%d')
+        subtitle='據點：' ~ day.location.name ~ ' | 日期：' ~ day.date.strftime('%Y-%-m-%d')
     ) }}
 {% endif %}
 
@@ -56,10 +56,16 @@
                         <td class="text-end" style="width: 1rem;">$</td>
                         <td class="text-end" style="width: 10ch;">{{ day.total_sales | round(2) | int }}</td>
                     </tr>
+                    {# [新增] 其他收入行 #}
+                    <tr>
+                        <td>其他收入</td>
+                        <td class="text-end" style="width: 1rem;">$</td>
+                        <td class="text-end" style="width: 10ch;">{{ other_income_total | round(2) | int }}</td>
+                    </tr>
                     <tr class="fw-bold">
                         <td>帳面總額 (A)</td>
                         <td class="text-end fw-bold" style="width: 1rem;">$</td>
-                        <td class="text-end fw-bold" style="width: 10ch;">{{ 帳面總額 | round(2) | int }}</td>
+                        <td class="text-end fw-bold" style="width: 10ch;">{{ expected_total | round(2) | int }}</td>
                     </tr>
                     <tr>
                         <td class="fw-bold">盤點現金合計 (B)</td>
@@ -69,16 +75,16 @@
                     </tr>
                     <tr class="fw-bolder">
                         {# 根據「帳差」是正數、負數還是零，動態地為文字套用不同的顏色 (text-danger, text-primary, text-success) #}
-                        <td class="{% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}">
+                        <td class="{% if difference < 0 %}text-danger{% elif difference > 0 %}text-primary{% else %}text-success{% endif %}">
                             帳差 (B - A)
                         </td>
-                        <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
+                        <td class="text-end {% if difference < 0 %}text-danger{% elif difference > 0 %}text-primary{% else %}text-success{% endif %}"
                             style="width: 1rem;">
                             $
                         </td>
-                        <td class="text-end {% if 帳差 < 0 %}text-danger{% elif 帳差 > 0 %}text-primary{% else %}text-success{% endif %}"
+                        <td class="text-end {% if difference < 0 %}text-danger{% elif difference > 0 %}text-primary{% else %}text-success{% endif %}"
                             style="width: 10ch;">
-                            {{ 帳差 | round(2) | int }}
+                            {{ difference | round(2) | int }}
                         </td>
                     </tr>
                 </tbody>

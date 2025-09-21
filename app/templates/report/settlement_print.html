@@ -112,7 +112,6 @@
 
         <hr>
 
-        <!-- 當日結算 (總計) -->
         <h3>當日結算</h3>
         <table class="report-table">
             <thead>
@@ -133,7 +132,6 @@
             </tbody>
         </table>
 
-        <!-- 銷售統計 (總計) -->
         <h3>銷售統計</h3>
         <table class="report-table">
              <thead>
@@ -146,15 +144,32 @@
             <tbody>
                 {% for num, name, key, attr in sales_items %}
                 <tr>
-                    <td>{{ num }}. {{ name }}</td>
-                    <td class="currency-col"></td>
-                    <td class="amount-col">{{ grand_total[key] }}</td>
+                    <td class="text-center fw-bold">{{ num }}</td>
+                    <td>{{ name }}</td>
+                    
+                    <td class="currency-symbol"></td>
+                    <td class="amount fw-bold">{{ grand_total[key] }}</td>
+
+                    {% for location_name in active_locations_ordered %}
+                        {% set report = reports.get(location_name) %}
+                        <td class="currency-symbol"></td>
+                        <td class="amount">{{ report[attr] or 0 }}</td>
+                    {% endfor %}
+
+                    {% for i in range(5 - (active_locations_ordered|length)) %}
+                    <td colspan="2" class="table-active"></td>
+                    {% endfor %}
+
+                    <td class="p-1">
+                        {% set remark_index = 9 + loop.index0 %}
+                        {{ form.remarks[remark_index].value(class="form-control form-control-sm remark-input", readonly=is_settled) }}
+                        {{ form.remarks[remark_index].key(value=key) }}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
 
-        <!-- 備註 -->
         <h3>備註</h3>
         <table class="report-table">
              <thead>
@@ -182,7 +197,6 @@
             </tbody>
         </table>
 
-        <!-- 簽核欄 -->
         <h3 style="border:0;">簽核欄</h3>
         <table class="signature-table">
             <tbody>
@@ -201,4 +215,3 @@
     </div>
 </body>
 </html>
-

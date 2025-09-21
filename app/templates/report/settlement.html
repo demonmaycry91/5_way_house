@@ -4,7 +4,6 @@
 {% block title %}合併報表結算{% endblock %}
 
 {% block styles %}
-<!-- Flatpickr CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style>
     .table td, .table th {
@@ -110,7 +109,6 @@
     {{ form.hidden_tag() }}
     {{ form.date }}
     
-    <!-- 表格一：當日結算 -->
     <h4 class="mt-4">當日結算</h4>
     <div class="table-responsive">
         <table class="table table-bordered table-hover" style="table-layout: fixed;">
@@ -151,7 +149,6 @@
                     <td class="text-center fw-bold">{{ num }}</td>
                     <td>{{ name }}</td>
                     
-                    <!-- Grand Total Data -->
                     {% if name == '存款' %}
                         <td class="currency-symbol">$</td>
                         <td class="amount fw-bold" id="deposit_display">{{ "{:,.0f}".format(grand_total.H) }}</td>
@@ -167,10 +164,19 @@
 
                     {% for location_name in active_locations_ordered %}
                         {% set report = reports.get(location_name) %}
-                        {% if name == '其他現金' %}
+                        {% if name == '應有現金' %}
+                            {% set value = (report.opening_cash or 0) + (report.total_sales or 0) + ((report.donation_total or 0) + (report.other_total or 0)) %}
+                        {% elif name == '開店現金' %}
+                            {% set value = report.opening_cash or 0 %}
+                        {% elif name == '手帳營收' %}
+                            {% set value = report.total_sales or 0 %}
+                        {% elif name == '其他現金' %}
                             {% set value = (report.donation_total or 0) + (report.other_total or 0) %}
-                        {% elif name == '當日總現金' %}
-                            {% set value = (report.closing_cash or 0) + (report.donation_total or 0) + (report.other_total or 0) %}
+                        {% elif name == '實有現金' %}
+                            {% set value = report.closing_cash or 0 %}
+                        {% elif name == '溢短收' %}
+                            {% set expected_value = (report.opening_cash or 0) + (report.total_sales or 0) + ((report.donation_total or 0) + (report.other_total or 0)) %}
+                            {% set value = (report.closing_cash or 0) - expected_value %}
                         {% elif name in ['存款', '明日開店現金'] %}
                             {% set value = None %}
                         {% else %}
@@ -188,7 +194,6 @@
                     <td colspan="2" class="table-active"></td>
                     {% endfor %}
 
-                    <!-- Remarks -->
                     <td class="p-1">
                         {{ form.remarks[loop.index0].value(class="form-control form-control-sm remark-input", readonly=is_settled) }}
                         {{ form.remarks[loop.index0].key(value=key) }}
@@ -199,7 +204,6 @@
         </table>
     </div>
 
-    <!-- 表格二：銷售統計 -->
     <h4 class="mt-4">銷售統計</h4>
     <div class="table-responsive">
         <table class="table table-bordered table-hover" style="table-layout: fixed;">
@@ -240,23 +244,19 @@
                     <td class="text-center fw-bold">{{ num }}</td>
                     <td>{{ name }}</td>
                     
-                    <!-- Grand Total Data -->
                     <td class="currency-symbol"></td>
                     <td class="amount fw-bold">{{ grand_total[key] }}</td>
 
-                    <!-- Location Data -->
                     {% for location_name in active_locations_ordered %}
                         {% set report = reports.get(location_name) %}
                         <td class="currency-symbol"></td>
                         <td class="amount">{{ report[attr] or 0 }}</td>
                     {% endfor %}
 
-                    <!-- Blank Columns -->
                     {% for i in range(5 - (active_locations_ordered|length)) %}
                     <td colspan="2" class="table-active"></td>
                     {% endfor %}
 
-                    <!-- Remarks -->
                     <td class="p-1">
                         {% set remark_index = 9 + loop.index0 %}
                         {{ form.remarks[remark_index].value(class="form-control form-control-sm remark-input", readonly=is_settled) }}
@@ -272,22 +272,19 @@
         {{ form.submit(class="btn btn-primary", disabled=(not all_closed or is_settled)) }}
     </div>
 
-    <!-- Hidden Fields -->
     {{ form.total_deposit(class="d-none", id="deposit_input") }}
 </form>
 {% endblock %}
 
 {% block scripts %}
-<!-- Flatpickr JS -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<!-- Flatpickr 台灣中文語系 -->
 <script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const nextDayCashInput = document.getElementById('next_day_cash_input');
     const depositDisplay = document.getElementById('deposit_display');
     const depositInput = document.getElementById('deposit_input');
-    const grandTotalG = parseFloat("{{ grand_total.G|default(0) }}");
+    const grandTotalE = parseFloat("{{ grand_total.E|default(0) }}");
     const settlementForm = document.getElementById('settlement-form');
 
     function formatNumber(input) {
@@ -308,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if(nextDayCashInput.readOnly) return;
         const rawValue = nextDayCashInput.value.replace(/,/g, '');
         const nextCash = parseFloat(rawValue) || 0;
-        const deposit = grandTotalG - nextCash;
+        const deposit = grandTotalE - nextCash;
         
         depositDisplay.textContent = new Intl.NumberFormat().format(deposit.toFixed(0));
         depositInput.value = deposit;
@@ -403,4 +400,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-

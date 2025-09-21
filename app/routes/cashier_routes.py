@@ -384,8 +384,11 @@ def daily_report(location_slug):
     opening_cash = business_day.opening_cash or 0
     
     # 修正點：動態重新計算 total_sales，確保顯示正確的折扣後總額
-    recalculated_total_sales = db.session.query(func.sum(Transaction.amount)).filter(Transaction.business_day_id == business_day.id).scalar() or 0
-    
+    sales_total = db.session.query(func.sum(TransactionItem.price)).join(Transaction.items).join(TransactionItem.category).filter(
+        Transaction.business_day_id == business_day.id,
+        Category.category_type.in_(['product', 'discount_fixed', 'discount_percent', 'buy_n_get_m', 'buy_x_get_x_minus_1', 'buy_odd_even'])
+    ).scalar() or 0
+
     other_income_total = db.session.query(
         func.sum(TransactionItem.price)
     ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
@@ -393,16 +396,16 @@ def daily_report(location_slug):
         Category.category_type == 'other_income'
     ).scalar() or 0
     
-    expected_total = opening_cash + recalculated_total_sales + other_income_total
+    expected_total = opening_cash + sales_total + other_income_total
     difference = closing_cash - expected_total
     form = ConfirmReportForm()
     
-    # 修正點：將動態計算的 total_sales 傳給模板
-    business_day.total_sales = recalculated_total_sales
+    # 修正點：將動態計算的 total_sales 和 other_income_total 傳給模板
+    business_day.total_sales = sales_total
     business_day.expected_cash = expected_total
     business_day.cash_diff = difference
 
-    return render_template("cashier/daily_report.html", day=business_day, 帳面總額=expected_total, 帳差=difference, form=form, report_date=report_date)
+    return render_template("cashier/daily_report.html", day=business_day, other_income_total=other_income_total, expected_total=expected_total, difference=difference, form=form)
 
 
 @bp.route("/confirm_report/<location_slug>", methods=["POST"])
@@ -435,7 +438,10 @@ def confirm_report(location_slug):
             business_day.status = "CLOSED"
             
             # 修正點：動態重新計算 total_sales 和 other_income_total，並存回資料庫
-            recalculated_total_sales = db.session.query(func.sum(Transaction.amount)).filter(Transaction.business_day_id == business_day.id).scalar() or 0
+            sales_total = db.session.query(func.sum(TransactionItem.price)).join(Transaction.items).join(TransactionItem.category).filter(
+                Transaction.business_day_id == business_day.id,
+                Category.category_type.in_(['product', 'discount_fixed', 'discount_percent', 'buy_n_get_m', 'buy_x_get_x_minus_1', 'buy_odd_even'])
+            ).scalar() or 0
             
             other_income_total = db.session.query(
                 func.sum(TransactionItem.price)
@@ -444,7 +450,7 @@ def confirm_report(location_slug):
                 Category.category_type == 'other_income'
             ).scalar() or 0
             
-            business_day.total_sales = recalculated_total_sales
+            business_day.total_sales = sales_total
             business_day.expected_cash = (business_day.opening_cash or 0) + (business_day.total_sales or 0) + other_income_total
             business_day.cash_diff = (business_day.closing_cash or 0) - business_day.expected_cash
             
@@ -487,6 +493,6 @@ def print_report(location_slug):
     signatures = {'operator': request.form.get('sig_operator'), 'reviewer': request.form.get(
         'sig_reviewer'), 'cashier': request.form.get('sig_cashier')}
     html_to_render = render_template(
-        "cashier/report_print.html", day=business_day, 帳面總額=expected_total, 帳差=difference, signatures=signatures)
+        "cashier/report_print.html", day=business_day, other_income_total=other_income_total, expected_total=expected_total, difference=difference, signatures=signatures)
     pdf = HTML(string=html_to_render).write_pdf()
     return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f"attachment;filename=daily_report_{location.slug}_{today.strftime('%Y%m%d')}.pdf"})

@@ -1,4 +1,5 @@
-# app/routes/report_routes.py
+import os
+import json
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, Response
 from flask_login import login_required
 from ..models import BusinessDay, Transaction, TransactionItem, Location, DailySettlement, Category
@@ -505,20 +506,29 @@ def settlement():
             else:
                 r.other_total += total
     
-    grand_total_dict = {
-        'A': sum(r.expected_cash or 0 for r in closed_reports), 'B': sum(r.total_sales or 0 for r in closed_reports), 'C': sum(r.opening_cash or 0 for r in closed_reports),
-        'D': sum(r.closing_cash or 0 for r in closed_reports), 'J': sum(r.total_transactions or 0 for r in closed_reports), 'K': sum(r.total_items or 0 for r in closed_reports),
-    }
-    grand_total_dict['E'] = grand_total_dict['D'] - grand_total_dict['A']
-    grand_total_dict['F'] = sum((r.donation_total or 0) + (r.other_total or 0) for r in closed_reports)
-    grand_total_dict['G'] = grand_total_dict['D'] + grand_total_dict['F']
+    # --- 修正點：根據新規則重新計算 grand_total_dict ---
+    grand_total_dict = {}
+    grand_total_dict['B'] = sum(r.opening_cash or 0 for r in closed_reports)  # B: 開店現金
+    grand_total_dict['C'] = sum(r.total_sales or 0 for r in closed_reports)  # C: 手帳營收
+    grand_total_dict['D'] = sum((r.donation_total or 0) + (r.other_total or 0) for r in closed_reports)  # D: 其他現金
+    grand_total_dict['E'] = sum(r.closing_cash or 0 for r in closed_reports)  # E: 實有現金
     
+    # A: 應有現金 = B + C + D
+    grand_total_dict['A'] = grand_total_dict['B'] + grand_total_dict['C'] + grand_total_dict['D']
+    
+    # F: 溢短收 = E - A
+    grand_total_dict['F'] = grand_total_dict['E'] - grand_total_dict['A']
+
+    grand_total_dict['J'] = sum(r.total_transactions or 0 for r in closed_reports)
+    grand_total_dict['K'] = sum(r.total_items or 0 for r in closed_reports)
+
     if is_settled:
         grand_total_dict['H'] = daily_settlement.total_deposit
         grand_total_dict['I'] = daily_settlement.total_next_day_opening_cash
     else:
         grand_total_dict['I'] = 0 
-        grand_total_dict['H'] = grand_total_dict['G'] - grand_total_dict['I']
+        # H: 存款 = E - I
+        grand_total_dict['H'] = grand_total_dict['E'] - grand_total_dict['I']
 
     class GrandTotal:
         def __init__(self, **entries): self.__dict__.update(entries)
@@ -538,10 +548,16 @@ def settlement():
         form.total_next_day_opening_cash.data = grand_total.I
         form.total_deposit.data = grand_total.H
 
+    # --- 修正點：更新 finance_items 列表的順序和 attr/key ---
     finance_items = [
-        ('A', '應有現金', 'A', 'expected_cash'), ('B', '手帳營收', 'B', 'total_sales'), ('C', '開店現金', 'C', 'opening_cash'),
-        ('D', '實有現金', 'D', 'closing_cash'), ('E', '溢短收', 'E', 'cash_diff'), ('F', '其他現金', 'F', 'other_cash'),
-        ('G', '當日總現金', 'G', 'total_cash'), ('H', '存款', 'H', 'deposit'), ('I', '明日開店現金', 'I', 'next_day_cash')
+        ('A', '應有現金', 'A', 'expected_cash_new'),
+        ('B', '開店現金', 'B', 'opening_cash'),
+        ('C', '手帳營收', 'C', 'total_sales'),
+        ('D', '其他現金', 'D', 'other_cash'),
+        ('E', '實有現金', 'E', 'closing_cash'),
+        ('F', '溢短收', 'F', 'cash_diff_new'),
+        ('H', '存款', 'H', 'deposit'),
+        ('I', '明日開店現金', 'I', 'next_day_opening_cash')
     ]
     sales_items = [('J', '結單數', 'J', 'total_transactions'), ('K', '品項數', 'K', 'total_items')]
 
@@ -570,11 +586,12 @@ def save_settlement():
         except Exception as e:
             db.session.rollback()
             flash(f"儲存時發生錯誤：{e}", "danger")
+        return redirect(url_for('report.settlement', date=form.date.data or date.today().isoformat()))
     else:
         error_messages = [f"欄位 '{getattr(form, field).label.text}' 發生錯誤: {error}" for field, errors in form.errors.items() for error in errors]
         flash("提交的資料有誤，請重試。 " + " ".join(error_messages), "warning")
         return redirect(url_for('report.settlement', date=form.date.data or date.today().isoformat()))
-    return redirect(url_for('report.settlement', date=form.date.data))
+
 
 @bp.route('/settlement/print/<date_str>')
 @login_required
@@ -585,32 +602,70 @@ def print_settlement(date_str):
     except (ValueError, TypeError):
         flash("無效的日期格式。", "danger")
         return redirect(url_for('report.settlement'))
-    closed_reports = db.session.query(BusinessDay).options(db.joinedload(BusinessDay.location)).filter(BusinessDay.date == report_date, BusinessDay.status == 'CLOSED').all()
+    closed_reports = db.session.query(BusinessDay).options(db.joinedload(BusinessDay.location)).filter(
+        BusinessDay.date == report_date, BusinessDay.status == 'CLOSED').all()
     daily_settlement = DailySettlement.query.filter_by(date=report_date).first()
     if not daily_settlement:
         flash("該日期的合併報表尚未結算，無法列印。", "warning")
-        return redirect(url_for('report.settlement', date=report_date.isoformat()))
+    return redirect(url_for('report.settlement', date=report_date.isoformat()))
     reports = {r.location.name: r for r in closed_reports}
     active_locations_ordered = [name for name in LOCATION_ORDER if name in reports]
-    grand_total_dict = {
-        'A': sum(r.expected_cash or 0 for r in closed_reports), 'B': sum(r.total_sales or 0 for r in closed_reports), 'C': sum(r.opening_cash or 0 for r in closed_reports),
-        'D': sum(r.closing_cash or 0 for r in closed_reports), 'J': sum(r.total_transactions or 0 for r in closed_reports), 'K': sum(r.total_items or 0 for r in closed_reports),
-    }
-    grand_total_dict['E'] = grand_total_dict['D'] - grand_total_dict['A']
-    grand_total_dict['F'] = sum((r.donation_total or 0) + (r.other_total or 0) for r in closed_reports)
-    grand_total_dict['G'] = grand_total_dict['D'] + grand_total_dict['F']
+
+    # --- 修正點：動態計算 donation_total 和 other_total ---
+    for r in closed_reports:
+        r.donation_total = 0
+        r.other_total = 0
+        other_income_totals = db.session.query(
+            Category.name,
+            func.sum(TransactionItem.price)
+        ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+            BusinessDay.id == r.id,
+            Category.category_type == 'other_income'
+        ).group_by(Category.name).all()
+        for name, total in other_income_totals:
+            if name == '捐款':
+                r.donation_total = total
+            else:
+                r.other_total += total
+    
+    # --- 修正點：根據新規則重新計算 grand_total_dict ---
+    grand_total_dict = {}
+    grand_total_dict['B'] = sum(r.opening_cash or 0 for r in closed_reports)  # B: 開店現金
+    grand_total_dict['C'] = sum(r.total_sales or 0 for r in closed_reports)  # C: 手帳營收
+    grand_total_dict['D'] = sum((r.donation_total or 0) + (r.other_total or 0) for r in closed_reports)  # D: 其他現金
+    grand_total_dict['E'] = sum(r.closing_cash or 0 for r in closed_reports)  # E: 實有現金
+    
+    # A: 應有現金 = B + C + D
+    grand_total_dict['A'] = grand_total_dict['B'] + grand_total_dict['C'] + grand_total_dict['D']
+    
+    # F: 溢短收 = E - A
+    grand_total_dict['F'] = grand_total_dict['E'] - grand_total_dict['A']
+
+    grand_total_dict['J'] = sum(r.total_transactions or 0 for r in closed_reports)
+    grand_total_dict['K'] = sum(r.total_items or 0 for r in closed_reports)
+    
     grand_total_dict['H'] = daily_settlement.total_deposit
     grand_total_dict['I'] = daily_settlement.total_next_day_opening_cash
+    
     class GrandTotal:
         def __init__(self, **entries): self.__dict__.update(entries)
     grand_total = GrandTotal(**grand_total_dict)
+    
     remarks_data = json.loads(daily_settlement.remarks) if daily_settlement and daily_settlement.remarks else {}
+
+    # --- 修正點：更新 finance_items 列表的順序和 attr/key ---
     finance_items = [
-        ('A', '應有現金', 'A', 'expected_cash'), ('B', '手帳營收', 'B', 'total_sales'), ('C', '開店現金', 'C', 'opening_cash'),
-        ('D', '實有現金', 'D', 'closing_cash'), ('E', '溢短收', 'E', 'cash_diff'), ('F', '其他現金', 'F', 'other_cash'),
-        ('G', '當日總現金', 'G', 'total_cash'), ('H', '存款', 'H', 'deposit'), ('I', '明日開店現金', 'I', 'next_day_cash')
+        ('A', '應有現金', 'A', 'expected_cash_new'),
+        ('B', '開店現金', 'B', 'opening_cash'),
+        ('C', '手帳營收', 'C', 'total_sales'),
+        ('D', '其他現金', 'D', 'other_cash'),
+        ('E', '實有現金', 'E', 'closing_cash'),
+        ('F', '溢短收', 'F', 'cash_diff_new'),
+        ('H', '存款', 'H', 'deposit'),
+        ('I', '明日開店現金', 'I', 'next_day_opening_cash')
     ]
     sales_items = [('J', '結單數', 'J', 'total_transactions'), ('K', '品項數', 'K', 'total_items')]
+
     html_to_render = render_template(
         'report/settlement_print.html', report_date=report_date, reports=reports, active_locations_ordered=active_locations_ordered,
         grand_total=grand_total, remarks_data=remarks_data, finance_items=finance_items, sales_items=sales_items

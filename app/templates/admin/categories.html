@@ -76,111 +76,110 @@
     {% endif %}
 {% endwith %}
 
-<div class="card">
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">ID</th>
-                        <th>類別名稱</th>
-                        <th style="width: 15%;">類別類型</th>
-                        <th style="width: 5%;">顏色</th>
-                        <th style="width: 20%;">說明</th>
-                        <th>規則設定</th>
-                        <th style="width: 10%;" class="text-end">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="category-table-body">
-                    {% for category in categories %}
-                    <tr class="category-row">
-                        <td>{{ category.id }}</td>
-                        <td><input type="text" class="inline-input" name="category-{{ category.id }}-name" value="{{ category.name }}"></td>
-                        <td>
-                            <select name="category-{{ category.id }}-type" class="inline-select category-type-select">
-                                <option value="product" {% if category.category_type == 'product' %}selected{% endif %}>一般商品</option>
-                                <option value="discount_fixed" {% if category.category_type == 'discount_fixed' %}selected{% endif %}>固定折扣</option>
-                                <option value="discount_percent" {% if category.category_type == 'discount_percent' %}selected{% endif %}>百分比折扣</option>
-                                <option value="buy_n_get_m" {% if category.category_type == 'buy_n_get_m' %}selected{% endif %}>買N送M</option>
-                                <option value="buy_x_get_x_minus_1" {% if category.category_type == 'buy_x_get_x_minus_1' %}selected{% endif %}>買X送X-1</option>
-                                <option value="buy_odd_even" {% if category.category_type == 'buy_odd_even' %}selected{% endif %}>成雙優惠</option>
-                                <option value="other_income" {% if category.category_type == 'other_income' %}selected{% endif %}>其他收入</option>
-                            </select>
-                        </td>
-                        <td><input type="color" name="category-{{ category.id }}-color" value="{{ category.color }}" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
-                        <td class="description-cell small text-muted"></td>
-                        <td>
-                            {% set rules = category.get_rules() %}
-                            <div class="rules-container">
-                                <div class="rule-part target-rule">
-                                    <select class="inline-select rule-select" name="rule-{{ category.id }}-target_category_id">
-                                        {% for choice_id, choice_name in product_categories_choices %}
-                                        <option value="{{ choice_id }}" {% if rules.target_category_id == choice_id %}selected{% endif %}>{{ choice_name }}</option>
-                                        {% endfor %}
-                                    </select>
+<form id="category-form" method="POST" action="{{ url_for('admin.list_categories', location_id=location.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th>類別名稱</th>
+                            <th style="width: 15%;">類別類型</th>
+                            <th style="width: 5%;">顏色</th>
+                            <th style="width: 20%;">說明</th>
+                            <th>規則設定</th>
+                            <th style="width: 10%;" class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="category-table-body">
+                        {% for category in categories %}
+                        <tr class="category-row">
+                            <td>{{ category.id }}</td>
+                            <td><input type="text" class="inline-input" name="category-{{ category.id }}-name" value="{{ category.name }}"></td>
+                            <td>
+                                <select name="category-{{ category.id }}-type" class="inline-select category-type-select">
+                                    <option value="product" {% if category.category_type == 'product' %}selected{% endif %}>一般商品</option>
+                                    <option value="discount_fixed" {% if category.category_type == 'discount_fixed' %}selected{% endif %}>固定折扣</option>
+                                    <option value="discount_percent" {% if category.category_type == 'discount_percent' %}selected{% endif %}>百分比折扣</option>
+                                    <option value="buy_n_get_m" {% if category.category_type == 'buy_n_get_m' %}selected{% endif %}>買N送M</option>
+                                    <option value="buy_x_get_x_minus_1" {% if category.category_type == 'buy_x_get_x_minus_1' %}selected{% endif %}>買X送X-1</option>
+                                    <option value="buy_odd_even" {% if category.category_type == 'buy_odd_even' %}selected{% endif %}>成雙優惠</option>
+                                    <option value="other_income" {% if category.category_type == 'other_income' %}selected{% endif %}>其他收入</option>
+                                </select>
+                            </td>
+                            <td><input type="color" name="category-{{ category.id }}-color" value="{{ category.color }}" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
+                            <td class="description-cell small text-muted"></td>
+                            <td>
+                                {% set rules = category.get_rules() %}
+                                <div class="rules-container">
+                                    <div class="rule-part target-rule">
+                                        <select class="inline-select rule-select" name="rule-{{ category.id }}-target_category_id">
+                                            {% for choice_id, choice_name in product_categories_choices %}
+                                            <option value="{{ choice_id }}" {% if rules.target_category_id == choice_id %}selected{% endif %}>{{ choice_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="rule-part buy-n-get-m-rule">
+                                        <label>買</label>
+                                        <input type="number" class="rule-input" name="rule-{{ category.id }}-buy_n" value="{{ rules.buy_n or '' }}">
+                                        <label>送</label>
+                                        <input type="number" class="rule-input" name="rule-{{ category.id }}-get_m_free" value="{{ rules.get_m_free or '' }}">
+                                    </div>
                                 </div>
-                                <div class="rule-part buy-n-get-m-rule">
-                                    <label>買</label>
-                                    <input type="number" class="rule-input" name="rule-{{ category.id }}-buy_n" value="{{ rules.buy_n or '' }}">
-                                    <label>送</label>
-                                    <input type="number" class="rule-input" name="rule-{{ category.id }}-get_m_free" value="{{ rules.get_m_free or '' }}">
+                            </td>
+                            <td class="text-end">
+                                <form action="{{ url_for('admin.delete_category', category_id=category.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除類別 \'{{ category.name }}\' 嗎？');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        
+                        <tr class="category-row new-row-template">
+                            <td>(新)</td>
+                            <td><input type="text" class="inline-input new-name-input" name="new-name" placeholder="輸入名稱..."></td>
+                            <td>
+                                <select name="new-type" class="inline-select category-type-select">
+                                    <option value="product">一般商品</option>
+                                    <option value="discount_fixed">固定折扣</option>
+                                    <option value="discount_percent">百分比折扣</option>
+                                    <option value="buy_n_get_m">買N送M</option>
+                                    <option value="buy_x_get_x_minus_1">買X送X-1</option>
+                                    <option value="buy_odd_even">成雙優惠</option>
+                                    <option value="other_income">其他收入</option>
+                                </select>
+                            </td>
+                            <td><input type="color" name="new-color" value="#cccccc" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
+                            <td class="description-cell small text-muted"></td>
+                            <td>
+                                <div class="rules-container">
+                                    <div class="rule-part target-rule">
+                                        <select class="inline-select rule-select" name="new-rule-target_category_id">
+                                            {% for choice_id, choice_name in product_categories_choices %}
+                                            <option value="{{ choice_id }}">{{ choice_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="rule-part buy-n-get-m-rule">
+                                        <label>買</label>
+                                        <input type="number" class="rule-input" name="new-rule-buy_n" placeholder="N">
+                                        <label>送</label>
+                                        <input type="number" class="rule-input" name="new-rule-get_m_free" placeholder="M">
+                                    </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td class="text-end">
-                            <form action="{{ url_for('admin.delete_category', category_id=category.id) }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除類別 \'{{ category.name }}\' 嗎？');">
-                               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                               <button type="submit" class="btn btn-sm btn-danger">刪除</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    
-                    <tr class="category-row new-row-template">
-                         <td>(新)</td>
-                         <td><input type="text" class="inline-input new-name-input" name="new-name" placeholder="輸入名稱..."></td>
-                         <td>
-                             <select name="new-type" class="inline-select category-type-select">
-                                 <option value="product">一般商品</option>
-                                 <option value="discount_fixed">固定折扣</option>
-                                 <option value="discount_percent">百分比折扣</option>
-                                 <option value="buy_n_get_m">買N送M</option>
-                                 <option value="buy_x_get_x_minus_1">買X送X-1</option>
-                                 <option value="buy_odd_even">成雙優惠</option>
-                                 <option value="other_income">其他收入</option>
-                             </select>
-                         </td>
-                         <td><input type="color" name="new-color" value="#cccccc" style="width: 100%; height: 28px; border: none; padding: 0; background: none;"></td>
-                         <td class="description-cell small text-muted"></td>
-                         <td>
-                              <div class="rules-container">
-                                 <div class="rule-part target-rule">
-                                     <select class="inline-select rule-select" name="new-rule-target_category_id">
-                                         {% for choice_id, choice_name in product_categories_choices %}
-                                         <option value="{{ choice_id }}">{{ choice_name }}</option>
-                                         {% endfor %}
-                                     </select>
-                                 </div>
-                                 <div class="rule-part buy-n-get-m-rule">
-                                     <label>買</label>
-                                     <input type="number" class="rule-input" name="new-rule-buy_n" placeholder="N">
-                                     <label>送</label>
-                                     <input type="number" class="rule-input" name="new-rule-get_m_free" placeholder="M">
-                                 </div>
-                             </div>
-                         </td>
-                         <td class="text-end"></td>
-                    </tr>
-                </tbody>
-            </table>
+                            </td>
+                            <td class="text-end"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-</div>
-<form id="category-form" method="POST" action="{{ url_for('admin.list_categories', location_id=location.id) }}">
     <div class="mt-3">
         <div class="text-end">
-             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-             <input type="hidden" name="form-action" value="save">
             <button type="submit" class="btn btn-success btn-lg">儲存所有變更</button>
         </div>
     </div>
