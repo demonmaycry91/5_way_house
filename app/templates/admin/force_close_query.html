@@ -19,25 +19,21 @@
     <div class="card-body">
         <form method="GET" action="{{ url_for('admin.force_close_query') }}" id="report-query-form" novalidate>
             {{ form.hidden_tag() }}
-            <div class="d-flex flex-wrap align-items-end gap-3">
-                <div class="flex-grow-1">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
                     {{ form.location_id.label(class="form-label") }}
                     {{ form.location_id(class="form-select") }}
                 </div>
-                <div class="flex-grow-2">
-                    <div class="row g-2">
-                        <div class="col">
-                            {{ form.start_date.label(class="form-label") }}
-                            {{ form.start_date(class="form-control", id="startDatePicker") }}
-                        </div>
-                        <div class="col">
-                            {{ form.end_date.label(class="form-label") }}
-                            {{ form.end_date(class="form-control", id="endDatePicker") }}
-                        </div>
-                    </div>
+                <div class="col-md">
+                    {{ form.start_date.label(class="form-label") }}
+                    {{ form.start_date(class="form-control", id="startDatePicker") }}
                 </div>
-                <div class="d-grid">
-                    {{ form.submit(class="btn btn-primary") }}
+                <div class="col-md">
+                    {{ form.end_date.label(class="form-label") }}
+                    {{ form.end_date(class="form-control", id="endDatePicker") }}
+                </div>
+                <div class="col-auto">
+                    {{ form.submit(class="btn btn-primary w-100") }}
                 </div>
             </div>
         </form>
