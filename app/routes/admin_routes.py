@@ -15,7 +15,7 @@ from flask import (
 from flask_login import login_user, logout_user, login_required, current_user
 from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Category, TransactionItem, Role, Permission
 from .. import db, login_manager, csrf
-from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm, LocationForm, UserForm, RoleForm, CategoryForm
+from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm, LocationForm, UserForm, RoleForm, CategoryForm, ReportQueryForm
 from datetime import date, datetime
 from ..services import google_service
 from sqlalchemy.orm import contains_eager
@@ -25,6 +25,7 @@ from ..decorators import admin_required
 from weasyprint import HTML
 from sqlalchemy.sql import func
 from sqlalchemy import case
+
 
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -78,9 +79,6 @@ def delete_location(location_id):
 # --- 商品類別管理 ---
 @bp.route('/locations/<int:location_id>/categories', methods=['GET', 'POST'])
 @csrf.exempt
-# --- 商品類別管理 ---
-@bp.route('/locations/<int:location_id>/categories', methods=['GET', 'POST'])
-@csrf.exempt
 def list_categories(location_id):
     location = Location.query.get_or_404(location_id)
     product_categories_query = Category.query.filter_by(location_id=location.id, category_type='product').all()
@@ -111,43 +109,41 @@ def list_categories(location_id):
 
                     category.set_rules(rules) if rules else setattr(category, 'discount_rules', None)
 
-            # 處理新增的類別
+            # 處理新增的類別 - 重寫此處邏輯以避免索引錯位問題
             new_names = request.form.getlist('new-name')
-            if new_names:
-                new_colors = request.form.getlist('new-color')
-                new_types = request.form.getlist('new-type')
-                new_targets = request.form.getlist('new-rule-target_category_id')
-                new_buy_ns = request.form.getlist('new-rule-buy_n')
-                new_get_ms = request.form.getlist('new-rule-get_m_free')
-                
-                target_idx, buy_get_idx = 0, 0
-                for i, name in enumerate(new_names):
-                    if name.strip():
-                        new_category = Category(
-                            name=name.strip(),
-                            color=new_colors[i] or '#cccccc',
-                            location_id=location.id,
-                            category_type=new_types[i]
-                        )
-                        
-                        new_rules = {}
-                        ctype = new_types[i]
-                        if ctype in ['buy_n_get_m', 'buy_x_get_x_minus_1', 'buy_odd_even']:
-                            if target_idx < len(new_targets):
-                                new_rules['target_category_id'] = int(new_targets[target_idx])
-                                target_idx += 1
-                        
-                        if ctype == 'buy_n_get_m':
-                            if buy_get_idx < len(new_buy_ns) and new_buy_ns[buy_get_idx]:
-                                new_rules['buy_n'] = int(new_buy_ns[buy_get_idx])
-                            if buy_get_idx < len(new_get_ms) and new_get_ms[buy_get_idx]:
-                                new_rules['get_m_free'] = int(new_get_ms[buy_get_idx])
-                            buy_get_idx += 1
-                        
-                        if new_rules:
-                            new_category.set_rules(new_rules)
-                        
-                        db.session.add(new_category)
+            new_colors = request.form.getlist('new-color')
+            new_types = request.form.getlist('new-type')
+            new_targets = request.form.getlist('new-rule-target_category_id')
+            new_buy_ns = request.form.getlist('new-rule-buy_n')
+            new_get_ms = request.form.getlist('new-rule-get_m_free')
+
+            for i, name in enumerate(new_names):
+                if name.strip():
+                    new_category = Category(
+                        name=name.strip(),
+                        color=new_colors[i] if i < len(new_colors) else '#cccccc',
+                        location_id=location.id,
+                        category_type=new_types[i] if i < len(new_types) else 'product'
+                    )
+                    
+                    new_rules = {}
+                    ctype = new_types[i] if i < len(new_types) else 'product'
+                    
+                    # 處理規則 - 使用單一迴圈索引，並檢查列表長度
+                    if ctype in ['buy_n_get_m', 'buy_x_get_x_minus_1', 'buy_odd_even']:
+                        if i < len(new_targets) and new_targets[i]:
+                            new_rules['target_category_id'] = int(new_targets[i])
+                    
+                    if ctype == 'buy_n_get_m':
+                        if i < len(new_buy_ns) and new_buy_ns[i]:
+                            new_rules['buy_n'] = int(new_buy_ns[i])
+                        if i < len(new_get_ms) and new_get_ms[i]:
+                            new_rules['get_m_free'] = int(new_get_ms[i])
+                    
+                    if new_rules:
+                        new_category.set_rules(new_rules)
+                    
+                    db.session.add(new_category)
             
             db.session.commit()
             flash('所有變更已成功儲存！', 'success')
@@ -330,3 +326,65 @@ def delete_role(role_id):
     db.session.commit()
     flash('角色已刪除。', 'success')
     return redirect(url_for('admin.list_roles'))
+
+@bp.route('/force_close_day/<int:business_day_id>', methods=['GET', 'POST'])
+@admin_required
+def force_close_day(business_day_id):
+    business_day = BusinessDay.query.get_or_404(business_day_id)
+    
+    form = CloseDayForm()
+    denominations = [1000, 500, 200, 100, 50, 10, 5, 1]
+
+    if form.validate_on_submit():
+        try:
+            total_cash_counted = 0
+            cash_breakdown = {}
+            for denom in denominations:
+                count = request.form.get(f"count_{denom}", 0, type=int)
+                total_cash_counted += count * denom
+                cash_breakdown[denom] = count
+
+            business_day.closing_cash = total_cash_counted
+            business_day.cash_breakdown = json.dumps(cash_breakdown)
+            business_day.status = "PENDING_REPORT"
+            db.session.commit()
+            flash(f"已為據點 {business_day.location.name} 完成日結盤點！請前往審核報表。", "success")
+            # 修正點：在重定向時傳遞營業日的日期
+            return redirect(url_for('cashier.daily_report', location_slug=business_day.location.slug, date=business_day.date.isoformat()))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"處理日結時發生錯誤：{e}", "danger")
+            return redirect(url_for('admin.force_close_day', business_day_id=business_day.id))
+
+    return render_template('admin/force_close_day.html',
+                           location=business_day.location,
+                           today_date=business_day.date.strftime("%Y-%m-%d"),
+                           denominations=denominations,
+                           form=form)
+
+@bp.route('/force_close_query', methods=['GET'])
+def force_close_query():
+    form = ReportQueryForm()
+    form.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
+    
+    results = []
+    if request.args:
+        form.process(request.args)
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        location_id = request.args.get('location_id')
+
+        if start_date_str:
+            start_date = date.fromisoformat(start_date_str)
+            end_date = date.fromisoformat(end_date_str) if end_date_str else date.today()
+
+            # 這裡移除了對狀態的篩選
+            query = BusinessDay.query.options(db.joinedload(BusinessDay.location)).filter(
+                BusinessDay.date.between(start_date, end_date)
+            )
+            if location_id and location_id != 'all':
+                query = query.filter(BusinessDay.location_id == location_id)
+
+            results = query.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
+
+    return render_template('admin/force_close_query.html', form=form, results=results)

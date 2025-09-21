@@ -488,6 +488,23 @@ def settlement():
 
     active_locations_ordered = [name for name in LOCATION_ORDER if name in reports]
     
+    # --- 修正點：動態計算 donation_total 和 other_total ---
+    for r in closed_reports:
+        r.donation_total = 0
+        r.other_total = 0
+        other_income_totals = db.session.query(
+            Category.name,
+            func.sum(TransactionItem.price)
+        ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+            BusinessDay.id == r.id,
+            Category.category_type == 'other_income'
+        ).group_by(Category.name).all()
+        for name, total in other_income_totals:
+            if name == '捐款':
+                r.donation_total = total
+            else:
+                r.other_total += total
+    
     grand_total_dict = {
         'A': sum(r.expected_cash or 0 for r in closed_reports), 'B': sum(r.total_sales or 0 for r in closed_reports), 'C': sum(r.opening_cash or 0 for r in closed_reports),
         'D': sum(r.closing_cash or 0 for r in closed_reports), 'J': sum(r.total_transactions or 0 for r in closed_reports), 'K': sum(r.total_items or 0 for r in closed_reports),

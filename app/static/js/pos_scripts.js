@@ -255,27 +255,29 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     
     async function applyOtherIncome(categoryId, categoryName) {
-        const value = safeCalculate([...expression, currentInput].join(' '));
-        if (value <= 0) {
-            updateDisplay("金額必須大於 0");
-            return;
-        }
-
-        const items = [{
-            price: value, unitPrice: value, quantity: 1,
-            category_id: categoryId, category_type: 'other_income',
-            categoryName, displayText: value.toString()
-        }];
-
-        const success = await sendTransactionToServer(items, null, null);
-
-        if (success) {
-            updateReceiptForOtherIncome(value, categoryName);
-            finalizeTransaction(true, null, null);
-        } else {
-            finalizeTransaction(false, null, null);
-        }
+    const value = safeCalculate([...expression, currentInput].join(' '));
+    if (value <= 0) {
+        updateDisplay("金額必須大於 0");
+        return;
     }
+
+    const items = [{
+        price: value, unitPrice: value, quantity: 1,
+        category_id: categoryId, category_type: 'other_income',
+        categoryName, displayText: value.toString()
+    }];
+
+    // 修正點：將 value 作為 paidAmount 和 changeReceived 傳入
+    // 由於其他收入沒有應收金額，直接將收到現金設為輸入的金額，找零為 0
+    const success = await sendTransactionToServer(items, value, 0);
+
+    if (success) {
+        updateReceiptForOtherIncome(value, categoryName);
+        finalizeTransaction(true, value, 0);
+    } else {
+        finalizeTransaction(false, null, null);
+    }
+}
 
     function recalculateRelevantDiscounts(changedCategoryId) {
         const activeDiscounts = transactionItems.filter(item =>

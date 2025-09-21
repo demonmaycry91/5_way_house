@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_header with context %}
+
+{% block title %}補登日結查詢{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+{{ page_header(title='補登日結', subtitle='請篩選需要進行補登日結的營業日紀錄') }}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('admin.force_close_query') }}" id="report-query-form" novalidate>
+            {{ form.hidden_tag() }}
+            <div class="d-flex flex-wrap align-items-end gap-3">
+                <div class="flex-grow-1">
+                    {{ form.location_id.label(class="form-label") }}
+                    {{ form.location_id(class="form-select") }}
+                </div>
+                <div class="flex-grow-2">
+                    <div class="row g-2">
+                        <div class="col">
+                            {{ form.start_date.label(class="form-label") }}
+                            {{ form.start_date(class="form-control", id="startDatePicker") }}
+                        </div>
+                        <div class="col">
+                            {{ form.end_date.label(class="form-label") }}
+                            {{ form.end_date(class="form-control", id="endDatePicker") }}
+                        </div>
+                    </div>
+                </div>
+                <div class="d-grid">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+{% endif %}
+{% endwith %}
+
+<div class="card mt-4">
+    <div class="card-header">查詢結果</div>
+    <div class="card-body">
+        {% if results %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+    <thead>
+        <tr>
+            <th>據點</th>
+            <th>日期</th>
+            <th>狀態</th>
+            <th class="text-end">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for day in results %}
+        <tr>
+            <td>{{ day.location.name }}</td>
+            <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
+            <td>
+                {% if day.status == 'OPEN' %}
+                    <span class="badge bg-success">營業中</span>
+                {% elif day.status == 'PENDING_REPORT' %}
+                    <span class="badge bg-warning text-dark">待確認報表</span>
+                {% elif day.status == 'CLOSED' %}
+                    <span class="badge bg-primary">已日結</span>
+                {% else %}
+                    <span class="badge bg-secondary">未開帳</span>
+                {% endif %}
+            </td>
+            <td class="text-end">
+                <a href="{{ url_for('admin.force_close_day', business_day_id=day.id) }}" class="btn btn-sm btn-danger">進行日結盤點</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+        </div>
+        {% else %}
+        <p class="text-center text-muted">查無符合條件的營業日紀錄。</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/zh-tw.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        flatpickr("#startDatePicker", {
+            locale: "zh_tw",
+            dateFormat: "Y-m-d",
+            defaultDate: "{{ request.args.get('start_date') or 'today' }}"
+        });
+        flatpickr("#endDatePicker", {
+            locale: "zh_tw",
+            dateFormat: "Y-m-d",
+            defaultDate: "{{ request.args.get('end_date') or '' }}"
+        });
+    });
+</script>
+{% endblock %}
