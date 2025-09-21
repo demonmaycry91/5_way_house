@@ -16,10 +16,19 @@
         height: 6px;
         border-radius: 50%;
     }
-    .dot-ready { background-color: #198754; }
-    .dot-in-progress { background-color: #ffc107; }
-    .dot-no-data { background-color: #6c757d; }
-    
+
+    .dot-ready {
+        background-color: #198754;
+    }
+
+    .dot-in-progress {
+        background-color: #ffc107;
+    }
+
+    .dot-no-data {
+        background-color: #6c757d;
+    }
+
     .chart-wrapper {
         height: 50vh;
         min-height: 400px;
@@ -36,32 +45,38 @@
         width: 100%;
         transition: max-width 0.5s ease-in-out;
     }
-    
+
     .form-row-container {
         display: flex;
         flex-wrap: wrap;
         gap: 1rem;
         align-items: flex-end;
     }
+
     .form-group {
         flex: 1 1 auto;
         min-width: 150px;
     }
+
     .periodic-group {
         display: flex;
         gap: 0.5rem;
     }
+
     .submit-group {
         margin-left: auto;
     }
+
     .placeholder-visible {
         visibility: visible;
     }
+
     .placeholder-hidden {
         visibility: hidden;
     }
-    
-    .table-responsive td, .table-responsive th {
+
+    .table-responsive td,
+    .table-responsive th {
         vertical-align: middle !important;
     }
 
@@ -69,7 +84,7 @@
         position: relative;
         padding: 0;
     }
-    
+
     /* 修正：更具體的 CSS 規則，確保應用於所有報表的貨幣欄位 */
     .table-responsive .currency-field {
         box-sizing: border-box;
@@ -84,7 +99,7 @@
         border-radius: 0.25rem;
         font-family: monospace;
     }
-    
+
     .editable-cell .editable-input,
     .editable-cell .editable-select {
         visibility: hidden;
@@ -94,10 +109,11 @@
         width: 100%;
         box-sizing: border-box;
     }
-    
+
     .editing .editable-cell .display-value {
         visibility: hidden;
     }
+
     .editing .editable-cell .editable-input,
     .editing .editable-cell .editable-select {
         visibility: visible;
@@ -122,15 +138,16 @@
     .table-responsive table tbody td:nth-child(1) {
         width: 200px;
     }
-    
+
     .table-responsive table thead th:nth-child(2),
     .table-responsive table tbody td:nth-child(2) {
         width: 100px;
     }
-    
+
     #cash-check-table {
         table-layout: fixed;
     }
+
     #cash-check-table th:nth-child(3),
     #cash-check-table td:nth-child(3) {
         width: 100px;
@@ -176,7 +193,7 @@
                         </div>
                     </div>
                     <div id="periodic-date-fields" style="display: none;">
-                         <div class="row g-2">
+                        <div class="row g-2">
                             <div class="col">
                                 <label class="form-label">比較期間 A</label>
                                 <div id="period-a-selector" class="periodic-group"></div>
@@ -201,14 +218,16 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">查詢結果</h5>
         <div class="d-flex align-items-center">
-             <div class="btn-group me-2" role="group">
-                 {% if request.args.get('report_type') in ['daily_summary', 'daily_cash_check', 'transaction_log'] %}
-                    <button type="button" class="btn btn-sm btn-secondary edit-button">編輯</button>
-                    <button type="submit" form="editable-form-{{ request.args.get('report_type') }}" class="btn btn-sm btn-success save-button" style="display: none;">儲存</button>
-                    <button type="button" class="btn btn-sm btn-danger cancel-button" style="display: none;">放棄</button>
-                 {% endif %}
-             </div>
-            <a href="{{ url_for('report.export_csv') }}?{{ request.query_string.decode('utf-8') }}" id="export-csv-btn" class="btn btn-sm btn-outline-success">
+            <div class="btn-group me-2" role="group">
+                {% if request.args.get('report_type') in ['daily_summary', 'daily_cash_check', 'transaction_log'] %}
+                <button type="button" class="btn btn-sm btn-secondary edit-button">編輯</button>
+                <button type="submit" form="editable-form-{{ request.args.get('report_type') }}"
+                    class="btn btn-sm btn-success save-button" style="display: none;">儲存</button>
+                <button type="button" class="btn btn-sm btn-danger cancel-button" style="display: none;">放棄</button>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('report.export_csv') }}?{{ request.query_string.decode('utf-8') }}" id="export-csv-btn"
+                class="btn btn-sm btn-outline-success">
                 匯出為 CSV
             </a>
         </div>
@@ -218,11 +237,13 @@
         <div class="chart-controls text-center mb-3 d-flex justify-content-center gap-3">
             <div class="btn-group" role="group" aria-label="圖表類型">
                 <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="bar">長條圖</button>
-                <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="line">折線圖</button>
+                <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn"
+                    data-type="line">折線圖</button>
                 <button type="button" class="btn btn-sm btn-outline-primary chart-type-btn" data-type="pie">圓餅圖</button>
             </div>
             <div class="btn-group" role="group" aria-label="圖表比例">
-                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn active" data-ratio="16/9">16:9</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn active"
+                    data-ratio="16/9">16:9</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary ratio-btn" data-ratio="4/3">4:3</button>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="download-chart-btn">下載圖表</button>
@@ -234,100 +255,136 @@
         </div>
         <hr class="my-4">
         {% endif %}
-        
+
         {% if request.args.get('report_type') == 'daily_summary' %}
-            <div class="table-responsive" data-report-type="daily_summary">
-                <form id="editable-form-daily_summary" method="POST" action="{{ url_for('report.save_daily_summary_data') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th>日期</th><th>據點</th><th class="text-end">開店金</th><th class="text-end">銷售總額</th><th class="text-end">帳面總額</th><th class="text-end">盤點現金</th><th class="text-end">帳差</th><th class="text-center">交易筆數</th><th class="text-center">銷售件數</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for day in results %}
-                        <tr data-id="{{ day.id }}">
-                            <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
-                            <td>{{ day.location.name }}</td>
-                            <td class="text-end editable-cell" data-field="opening_cash">
-                                <span class="display-value currency-field">${{ "{:,.0f}".format(day.opening_cash or 0) }}</span>
-                                <input type="number" class="text-end editable-input currency-field" value="{{ day.opening_cash or 0 }}">
-                            </td>
-                            <td class="text-end" data-field="total_sales">${{ "{:,.0f}".format(day.total_sales or 0) }}</td>
-                            <td class="text-end" data-field="expected_cash">${{ "{:,.0f}".format(day.expected_cash or 0) }}</td>
-                            <td class="text-end" data-field="closing_cash">${{ "{:,.0f}".format(day.closing_cash or 0) }}</td>
-                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}" data-field="cash_diff">${{ "{:,.0f}".format(day.cash_diff or 0) }}</td>
-                            <td class="text-center">{{ day.total_transactions or 0 }}</td>
-                            <td class="text-center">{{ day.total_items or 0 }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="9" class="text-center text-muted">查無資料</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                </form>
-            </div>
+        <div class="table-responsive" data-report-type="daily_summary">
+    <form id="editable-form-daily_summary" method="POST" action="{{ url_for('report.save_daily_summary_data') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>據點</th>
+                <th class="text-end">開店現金</th>
+                <th class="text-end">手帳營收</th>
+                <th class="text-end">其他現金</th>
+                <th class="text-end">應有現金</th>
+                <th class="text-end">實有現金</th>
+                <th class="text-end">溢短收</th>
+                <th class="text-center">交易筆數</th>
+                <th class="text-center">銷售件數</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for day in results %}
+            <tr data-id="{{ day.id }}">
+                <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ day.location.name }}</td>
+                <td class="text-end editable-cell" data-field="opening_cash">
+                    <span class="display-value currency-field">${{ "{:,.0f}".format(day.opening_cash or 0) }}</span>
+                    <input type="number" class="text-end editable-input currency-field" value="{{ day.opening_cash or 0 }}">
+                </td>
+                <td class="text-end" data-field="total_sales">${{ "{:,.0f}".format(day.total_sales or 0) }}</td>
+                <td class="text-end" data-field="other_cash">${{ "{:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
+                <td class="text-end" data-field="expected_cash">${{ "{:,.0f}".format(day.expected_cash or 0) }}</td>
+                <td class="text-end" data-field="closing_cash">${{ "{:,.0f}".format(day.closing_cash or 0) }}</td>
+                <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}" data-field="cash_diff">${{ "{:,.0f}".format(day.cash_diff or 0) }}</td>
+                <td class="text-center">{{ day.total_transactions or 0 }}</td>
+                <td class="text-center">{{ day.total_items or 0 }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="10" class="text-center text-muted">查無資料</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </form>
+</div>
         {% elif request.args.get('report_type') == 'transaction_log' %}
-            <div class="table-responsive" data-report-type="transaction_log">
-                <form id="editable-form-transaction_log" method="POST" action="{{ url_for('report.save_transaction_log_data') }}">
+        <div class="table-responsive" data-report-type="transaction_log">
+            <form id="editable-form-transaction_log" method="POST"
+                action="{{ url_for('report.save_transaction_log_data') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <script type="application/json" id="all-categories-data">{{ all_categories|tojson }}</script>
                 <table class="table table-striped table-hover transaction-log-table">
-                    <thead><tr><th style="width:10%;">時間</th><th style="width:8%;">據點</th><th style="width:15%;">項目/折扣</th><th style="width:8%;">類型</th><th style="width:12%;" class="text-end">單價/折扣額</th><th style="width:12%;" class="text-end">收到現金</th><th style="width:12%;" class="text-end">交易總額</th><th style="width:10%;">找零</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th style="width:10%;">時間</th>
+                            <th style="width:8%;">據點</th>
+                            <th style="width:15%;">項目/折扣</th>
+                            <th style="width:8%;">類型</th>
+                            <th style="width:12%;" class="text-end">單價/折扣額</th>
+                            <th style="width:12%;" class="text-end">收到現金</th>
+                            <th style="width:12%;" class="text-end">交易總額</th>
+                            <th style="width:10%;">找零</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {% for transaction in results %}
                         <tr data-id="{{ transaction.id }}">
-                            <td rowspan="{{ transaction.items|length }}">{{ transaction.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                            <td rowspan="{{ transaction.items|length }}">{{ transaction.business_day.location.name }}</td>
+                            <td rowspan="{{ transaction.items|length }}">{{ transaction.timestamp.strftime('%Y-%m-%d
+                                %H:%M:%S') }}</td>
+                            <td rowspan="{{ transaction.items|length }}">{{ transaction.business_day.location.name }}
+                            </td>
                             {% for item in transaction.items %}
-                                {% if loop.index > 1 %}
-                                <tr data-id="{{ transaction.id }}">
+                            {% if loop.index > 1 %}
+                        <tr data-id="{{ transaction.id }}">
+                            {% endif %}
+                            <td class="editable-cell" data-field="category"
+                                data-category-id="{{ item.category.id if item.category else '' }}">
+                                <span class="display-value">{{ item.category.name if item.category else '手動輸入' }}</span>
+                                <select class="editable-select form-select">
+                                    {% for category in all_categories %}
+                                    <option value="{{ category.id }}" data-type="{{ category.category_type }}" {% if
+                                        (item.category and item.category.id==category.id) %}selected{% endif %}>{{
+                                        category.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                {% if item.category.category_type == 'other_income' %}
+                                <span class="badge bg-info">其他收入</span>
+                                {% elif item.price > 0 %}
+                                <span class="badge bg-success">商品</span>
+                                {% else %}
+                                <span class="badge bg-danger">折扣</span>
                                 {% endif %}
-                                <td class="editable-cell" data-field="category" data-category-id="{{ item.category.id if item.category else '' }}">
-                                    <span class="display-value">{{ item.category.name if item.category else '手動輸入' }}</span>
-                                    <select class="editable-select form-select">
-                                        {% for category in all_categories %}
-                                            <option value="{{ category.id }}" data-type="{{ category.category_type }}" {% if (item.category and item.category.id == category.id) %}selected{% endif %}>{{ category.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </td>
-                                <td>
-    {% if item.category.category_type == 'other_income' %}
-    <span class="badge bg-info">其他收入</span>
-    {% elif item.price > 0 %}
-    <span class="badge bg-success">商品</span>
-    {% else %}
-    <span class="badge bg-danger">折扣</span>
-    {% endif %}
-</td>
-                                <td class="text-end editable-cell" data-item-id="{{ item.id }}" data-field="item_price">
-                                    <span class="display-value currency-field">${{ "{:,.0f}".format(item.price) }}</span>
-                                    <input type="number" class="text-end editable-input currency-field" value="{{ item.price }}">
-                                </td>
-                                {% if loop.first %}
-                                <td rowspan="{{ transaction.items|length }}" class="text-end editable-cell" data-field="cash_received">
-                                    <span class="display-value currency-field">${{ "{:,.0f}".format(transaction.cash_received or 0) }}</span>
-                                    <input type="number" class="text-end editable-input currency-field" value="{{ transaction.cash_received or 0 }}">
-                                </td>
-                                <td rowspan="{{ transaction.items|length }}" class="text-end fw-bold" data-field="amount">${{ "{:,.0f}".format(transaction.amount) }}</td>
-                                <td rowspan="{{ transaction.items|length }}" class="text-end fw-bold" data-field="change_given">${{ "{:,.0f}".format(transaction.change_given or 0) }}</td>
-                                {% endif %}
-                                {% if loop.index > 1 %}
-                                </tr>
-                                {% endif %}
-                            {% endfor %}
+                            </td>
+                            <td class="text-end editable-cell" data-item-id="{{ item.id }}" data-field="item_price">
+                                <span class="display-value currency-field">${{ "{:,.0f}".format(item.price) }}</span>
+                                <input type="number" class="text-end editable-input currency-field"
+                                    value="{{ item.price }}">
+                            </td>
+                            {% if loop.first %}
+                            <td rowspan="{{ transaction.items|length }}" class="text-end editable-cell"
+                                data-field="cash_received">
+                                <span class="display-value currency-field">${{
+                                    "{:,.0f}".format(transaction.cash_received or 0) }}</span>
+                                <input type="number" class="text-end editable-input currency-field"
+                                    value="{{ transaction.cash_received or 0 }}">
+                            </td>
+                            <td rowspan="{{ transaction.items|length }}" class="text-end fw-bold" data-field="amount">
+                                ${{ "{:,.0f}".format(transaction.amount) }}</td>
+                            <td rowspan="{{ transaction.items|length }}" class="text-end fw-bold"
+                                data-field="change_given">${{ "{:,.0f}".format(transaction.change_given or 0) }}</td>
+                            {% endif %}
+                            {% if loop.index > 1 %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
                         </tr>
                         {% else %}
-                        <tr><td colspan="8" class="text-center">找不到任何交易紀錄。</td></tr>
+                        <tr>
+                            <td colspan="8" class="text-center">找不到任何交易紀錄。</td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-                </form>
-            </div>
+            </form>
+        </div>
         {% elif request.args.get('report_type') == 'daily_cash_check' %}
-            <div class="table-responsive" data-report-type="daily_cash_check">
-                <form id="editable-form-daily_cash_check" method="POST" action="{{ url_for('report.save_cash_check_data') }}">
+        <div class="table-responsive" data-report-type="daily_cash_check">
+            <form id="editable-form-daily_cash_check" method="POST"
+                action="{{ url_for('report.save_cash_check_data') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="start_date" value="{{ request.args.get('start_date') }}">
                 <input type="hidden" name="end_date" value="{{ request.args.get('end_date') }}">
@@ -339,7 +396,7 @@
                             <th>據點</th>
                             <th class="text-end">總計</th>
                             {% for denom in denominations %}
-                                <th class="text-end">{{ denom }}</th>
+                            <th class="text-end">{{ denom }}</th>
                             {% endfor %}
                         </tr>
                     </thead>
@@ -347,9 +404,13 @@
                         {% if results %}
                         <tr class="fw-bold table-secondary">
                             <td colspan="2">總計</td>
-                            <td class="text-end closing_cash_display">{{ "$ {:,.0f}".format(grand_total.closing_cash) }}</td>
+                            <td class="text-end closing_cash_display">{{ "$ {:,.0f}".format(grand_total.closing_cash) }}
+                            </td>
                             {% for denom in denominations %}
-                                <td class="text-end" data-denom-total="{{ denom }}">{% set denom_total = namespace(value=0) %}{% for day in results %}{% set denom_total.value = denom_total.value + (day.cash_breakdown|from_json).get(denom|string, 0) %}{% endfor %}{{ denom_total.value }}</td>
+                            <td class="text-end" data-denom-total="{{ denom }}">{% set denom_total = namespace(value=0)
+                                %}{% for day in results %}{% set denom_total.value = denom_total.value +
+                                (day.cash_breakdown|from_json).get(denom|string, 0) %}{% endfor %}{{ denom_total.value
+                                }}</td>
                             {% endfor %}
                         </tr>
                         {% for day in results %}
@@ -357,155 +418,245 @@
                             <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
                             <td>{{ day.location.name }}</td>
                             <td class="text-end calculated-field">
-                                <span class="display-value closing_cash_display">{{ "$ {:,.0f}".format(day.closing_cash or 0) }}</span>
+                                <span class="display-value closing_cash_display">{{ "$ {:,.0f}".format(day.closing_cash
+                                    or 0) }}</span>
                             </td>
                             {% set cash_breakdown = day.cash_breakdown|from_json %}
                             {% for denom in denominations %}
-                                <td class="text-end editable-cell">
-                                    <span class="display-value">{{ cash_breakdown.get(denom|string, 0) }}</span>
-                                    <input type="number" class="form-control text-end editable-input cash-breakdown-input" 
-                                        name="count_{{ denom }}" 
-                                        data-denom="{{ denom }}" 
-                                        value="{{ cash_breakdown.get(denom|string, 0) }}" min="0">
-                                </td>
+                            <td class="text-end editable-cell">
+                                <span class="display-value">{{ cash_breakdown.get(denom|string, 0) }}</span>
+                                <input type="number" class="form-control text-end editable-input cash-breakdown-input"
+                                    name="count_{{ denom }}" data-denom="{{ denom }}"
+                                    value="{{ cash_breakdown.get(denom|string, 0) }}" min="0">
+                            </td>
                             {% endfor %}
                         </tr>
                         {% endfor %}
                         {% else %}
-                        <tr><td colspan="{{ 3 + denominations|length }}" class="text-center text-muted">查無資料</td></tr>
+                        <tr>
+                            <td colspan="{{ 3 + denominations|length }}" class="text-center text-muted">查無資料</td>
+                        </tr>
                         {% endif %}
                     </tbody>
                 </table>
-                </form>
-            </div>
+            </form>
+        </div>
         {% elif request.args.get('report_type') == 'daily_cash_summary' %}
-            <div class="table-responsive" data-report-type="daily_cash_summary">
-                <form id="editable-form-daily_cash_summary" method="POST" action="{{ url_for('report.save_daily_cash_summary_data') }}">
+        <div class="table-responsive" data-report-type="daily_cash_summary">
+            <form id="editable-form-daily_cash_summary" method="POST"
+                action="{{ url_for('report.save_daily_cash_summary_data') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <table class="table table-striped table-hover">
-                    <thead><tr><th>日期</th><th>據點</th><th class="text-end">開店現金</th><th class="text-end">手帳營收</th><th class="text-end">其他現金</th><th class="text-end">應有現金</th><th class="text-end">實有現金</th><th class="text-end">溢短收</th><th class="text-end">交易筆數</th><th class="text-end">銷售件數</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>據點</th>
+                            <th class="text-end">開店現金</th>
+                            <th class="text-end">手帳營收</th>
+                            <th class="text-end">其他現金</th>
+                            <th class="text-end">應有現金</th>
+                            <th class="text-end">實有現金</th>
+                            <th class="text-end">溢短收</th>
+                            <th class="text-end">交易筆數</th>
+                            <th class="text-end">銷售件數</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {% if results %}
                         <tr class="fw-bold table-secondary">
-                            <td colspan="2">總計 ({{ request.args.get('start_date') }} {% if request.args.get('end_date') and request.args.get('end_date') != request.args.get('start_date') %} - {{ request.args.get('end_date') }}{% endif %})</td>
-                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.opening_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.total_sales) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.other_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.expected_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.closing_cash) }}</td><td class="text-end">{{ "$ {:,.0f}".format(grand_total.cash_diff) }}</td><td class="text-end">{{ grand_total.total_transactions or 0 }}</td><td class="text-end">{{ grand_total.total_items or 0 }}</td>
+                            <td colspan="2">總計 ({{ request.args.get('start_date') }} {% if request.args.get('end_date')
+                                and request.args.get('end_date') != request.args.get('start_date') %} - {{
+                                request.args.get('end_date') }}{% endif %})</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.opening_cash) }}</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.total_sales) }}</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.other_cash) }}</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.expected_cash) }}</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.closing_cash) }}</td>
+                            <td class="text-end">{{ "$ {:,.0f}".format(grand_total.cash_diff) }}</td>
+                            <td class="text-end">{{ grand_total.total_transactions or 0 }}</td>
+                            <td class="text-end">{{ grand_total.total_items or 0 }}</td>
                         </tr>
                         {% for day in results %}
                         <tr data-id="{{ day.id }}">
                             <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
                             <td>{{ day.location.name }}</td>
-                            <td class="text-end" data-field="opening_cash">{{ "$ {:,.0f}".format(day.opening_cash or 0) }}</td>
-                            <td class="text-end" data-field="total_sales">{{ "$ {:,.0f}".format(day.total_sales or 0) }}</td>
-                            <td class="text-end" data-field="other_cash">{{ "$ {:,.0f}".format((day.donation_total or 0) + (day.other_total or 0)) }}</td>
-                            <td class="text-end" data-field="expected_cash">{{ "$ {:,.0f}".format(day.expected_cash or 0) }}</td>
-                            <td class="text-end" data-field="closing_cash">{{ "$ {:,.0f}".format(day.closing_cash or 0) }}</td>
-                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}" data-field="cash_diff">{{ "$ {:,.0f}".format(day.cash_diff or 0) }}</td>
+                            <td class="text-end editable-cell" data-field="opening_cash">
+                                <span class="display-value">${{ "{:,.0f}".format(day.opening_cash or 0) }}</span>
+                                <input type="number" class="text-end editable-input"
+                                    value="{{ day.opening_cash or 0 }}">
+                            </td>
+                            <td class="text-end" data-field="total_sales">{{ "$ {:,.0f}".format(day.total_sales or 0) }}
+                            </td>
+                            <td class="text-end" data-field="other_cash">{{ "$ {:,.0f}".format((day.donation_total or 0)
+                                + (day.other_total or 0)) }}</td>
+                            <td class="text-end" data-field="expected_cash">{{ "$ {:,.0f}".format(day.expected_cash or
+                                0) }}</td>
+                            <td class="text-end" data-field="closing_cash">{{ "$ {:,.0f}".format(day.closing_cash or 0)
+                                }}</td>
+                            <td class="text-end {% if day.cash_diff is not none and day.cash_diff < 0 %}text-danger{% endif %}"
+                                data-field="cash_diff">{{ "$ {:,.0f}".format(day.cash_diff or 0) }}</td>
                             <td class="text-end" data-field="total_transactions">{{ day.total_transactions or 0 }}</td>
                             <td class="text-end" data-field="total_items">{{ day.total_items or 0 }}</td>
                         </tr>
                         {% endfor %}
                         {% else %}
-                        <tr><td colspan="10" class="text-center text-muted">查無資料</td></tr>
+                        <tr>
+                            <td colspan="10" class="text-center text-muted">查無資料</td>
+                        </tr>
                         {% endif %}
                     </tbody>
                 </table>
-                </form>
-            </div>
+            </form>
+        </div>
         {% elif request.args.get('report_type') == 'combined_summary_final' %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                     <thead><tr><th>日期</th><th class="text-end">昨日預留總額 (I)</th><th class="text-end">今日開店總額 (C)</th><th class="text-end">核對結果 (差異)</th></tr></thead>
-                    <tbody>
-                        {% for day_check in results %}
-                        <tr class="{{ 'table-danger' if day_check.cash_check_diff != 0 }}">
-                            <td>{{ day_check.date.strftime('%Y-%m-%d') }}</td><td class="text-end">${{ "{:,.0f}".format(day_check.yesterday_total) }}</td><td class="text-end">${{ "{:,.0f}".format(day_check.today_total) }}</td><td class="text-end {% if day_check.cash_check_diff != 0 %}fw-bold{% endif %}">
-                                {% if day_check.cash_check_diff == 0 %} 相符 {% else %} ${{ "{:,.0f}".format(day_check.cash_check_diff) }} {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th class="text-end">昨日預留總額 (I)</th>
+                        <th class="text-end">今日開店總額 (C)</th>
+                        <th class="text-end">核對結果 (差異)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day_check in results %}
+                    <tr class="{{ 'table-danger' if day_check.cash_check_diff != 0 }}">
+                        <td>{{ day_check.date.strftime('%Y-%m-%d') }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(day_check.yesterday_total) }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(day_check.today_total) }}</td>
+                        <td class="text-end {% if day_check.cash_check_diff != 0 %}fw-bold{% endif %}">
+                            {% if day_check.cash_check_diff == 0 %} 相符 {% else %} ${{
+                            "{:,.0f}".format(day_check.cash_check_diff) }} {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% elif request.args.get('report_type') == 'product_mix' %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead><tr><th>產品類別</th><th class="text-end">銷售數量</th><th class="text-end">銷售總額</th><th class="text-end">佔總銷售額 %</th></tr></thead>
-                    <tbody>
-                        {% for row in results %}
-                        <tr>
-                            <td>{{ row.category_name }}</td><td class="text-end">{{ row.items_sold }}</td><td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td><td class="text-end">{{ "{:.2f}%".format((row.total_sales / total_revenue) * 100) if total_revenue > 0 else "0.00%" }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="text-center">查無資料</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>產品類別</th>
+                        <th class="text-end">銷售數量</th>
+                        <th class="text-end">銷售總額</th>
+                        <th class="text-end">佔總銷售額 %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in results %}
+                    <tr>
+                        <td>{{ row.category_name }}</td>
+                        <td class="text-end">{{ row.items_sold }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td>
+                        <td class="text-end">{{ "{:.2f}%".format((row.total_sales / total_revenue) * 100) if
+                            total_revenue > 0 else "0.00%" }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center">查無資料</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% elif request.args.get('report_type') == 'sales_trend' %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead><tr><th>日期</th><th class="text-end">總銷售額</th><th class="text-end">總交易筆數</th></tr></thead>
-                    <tbody>
-                        {% for row in results %}
-                        <tr>
-                            <td>{{ row.date.strftime('%Y-%m-%d') }}</td><td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td><td class="text-end">{{ row.total_transactions }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="3" class="text-center">查無資料</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th class="text-end">總銷售額</th>
+                        <th class="text-end">總交易筆數</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in results %}
+                    <tr>
+                        <td>{{ row.date.strftime('%Y-%m-%d') }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td>
+                        <td class="text-end">{{ row.total_transactions }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center">查無資料</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% elif request.args.get('report_type') == 'peak_hours' %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead><tr><th>時段</th><th class="text-end">交易筆數</th><th class="text-end">銷售總額</th></tr></thead>
-                    <tbody>
-                        {% for row in results %}
-                        <tr>
-                            <td>{{ row.hour }}:00 - {{ '%02d' % (row.hour|int + 1) }}:00</td><td class="text-end">{{ row.transactions }}</td><td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="3" class="text-center">查無資料</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>時段</th>
+                        <th class="text-end">交易筆數</th>
+                        <th class="text-end">銷售總額</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in results %}
+                    <tr>
+                        <td>{{ row.hour }}:00 - {{ '%02d' % (row.hour|int + 1) }}:00</td>
+                        <td class="text-end">{{ row.transactions }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(row.total_sales) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center">查無資料</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% elif request.args.get('report_type') == 'periodic_performance' %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th rowspan="2" class="align-middle">時間單位</th>
-                            <th colspan="2" class="text-center">期間 A</th>
-                            <th colspan="2" class="text-center">期間 B</th>
-                            <th colspan="2" class="text-center">差異比較</th>
-                        </tr>
-                        <tr>
-                            <th class="text-end">銷售額</th><th class="text-end">交易數</th>
-                            <th class="text-end">銷售額</th><th class="text-end">交易數</th>
-                            <th class="text-end">銷售額差異</th><th class="text-end">增長率</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in results %}
-                        <tr>
-                            <td>{{ row.label }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(row.sales_a) }}</td><td class="text-end">{{ row.trans_a }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(row.sales_b) }}</td><td class="text-end">{{ row.trans_b }}</td>
-                            <td class="text-end {% if row.sales_diff < 0 %}text-danger{% elif row.sales_diff > 0 %}text-success{% endif %}">${{ "{:,.0f}".format(row.sales_diff) }}</td>
-                            <td class="text-end {% if row.sales_perc < 0 %}text-danger{% elif row.sales_perc > 0 %}text-success{% endif %}">
-                                {% if row.sales_perc == 'inf' %}N/A{% else %}{{ "%.2f"|format(row.sales_perc) }}%{% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="7" class="text-center">查無資料或比較期間設定不完整</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th rowspan="2" class="align-middle">時間單位</th>
+                        <th colspan="2" class="text-center">期間 A</th>
+                        <th colspan="2" class="text-center">期間 B</th>
+                        <th colspan="2" class="text-center">差異比較</th>
+                    </tr>
+                    <tr>
+                        <th class="text-end">銷售額</th>
+                        <th class="text-end">交易數</th>
+                        <th class="text-end">銷售額</th>
+                        <th class="text-end">交易數</th>
+                        <th class="text-end">銷售額差異</th>
+                        <th class="text-end">增長率</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in results %}
+                    <tr>
+                        <td>{{ row.label }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(row.sales_a) }}</td>
+                        <td class="text-end">{{ row.trans_a }}</td>
+                        <td class="text-end">${{ "{:,.0f}".format(row.sales_b) }}</td>
+                        <td class="text-end">{{ row.trans_b }}</td>
+                        <td
+                            class="text-end {% if row.sales_diff < 0 %}text-danger{% elif row.sales_diff > 0 %}text-success{% endif %}">
+                            ${{ "{:,.0f}".format(row.sales_diff) }}</td>
+                        <td
+                            class="text-end {% if row.sales_perc < 0 %}text-danger{% elif row.sales_perc > 0 %}text-success{% endif %}">
+                            {% if row.sales_perc == 'inf' %}N/A{% else %}{{ "%.2f"|format(row.sales_perc) }}%{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">查無資料或比較期間設定不完整</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-            <p class="text-center text-muted">請選擇查詢條件以產生報表。</p>
+        <p class="text-center text-muted">請選擇查詢條件以產生報表。</p>
         {% endif %}
     </div>
 </div>
@@ -519,240 +670,240 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/report_scripts.js') }}"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const reportTypeSelect = document.getElementById('reportTypeSelect');
-    const locationSelect = document.getElementById('locationSelect');
-    const timeUnitWrapper = document.getElementById('time-unit-wrapper');
-    const timeUnitSelect = document.getElementById('timeUnitSelect');
-    const standardDateFields = document.getElementById('standard-date-fields');
-    const periodicDateFields = document.getElementById('periodic-date-fields');
-    const periodA_container = document.getElementById('period-a-selector');
-    const periodB_container = document.getElementById('period-b-selector');
+    document.addEventListener('DOMContentLoaded', function () {
+        const reportTypeSelect = document.getElementById('reportTypeSelect');
+        const locationSelect = document.getElementById('locationSelect');
+        const timeUnitWrapper = document.getElementById('time-unit-wrapper');
+        const timeUnitSelect = document.getElementById('timeUnitSelect');
+        const standardDateFields = document.getElementById('standard-date-fields');
+        const periodicDateFields = document.getElementById('periodic-date-fields');
+        const periodA_container = document.getElementById('period-a-selector');
+        const periodB_container = document.getElementById('period-b-selector');
 
-    const taiwanLocale = {
-        ...flatpickr.l10ns.zh_tw,
-        months: {
-            shorthand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"],
-            longhand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"],
-        },
-    };
+        const taiwanLocale = {
+            ...flatpickr.l10ns.zh_tw,
+            months: {
+                shorthand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"],
+                longhand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"],
+            },
+        };
 
-    function createYearSelector(name, defaultYear) {
-        const select = document.createElement('select');
-        select.name = name;
-        select.className = 'form-select';
-        const currentYear = new Date().getFullYear();
-        for (let y = currentYear; y >= 2020; y--) {
-            const option = new Option(y, y);
-            if (y == defaultYear) option.selected = true;
-            select.add(option);
+        function createYearSelector(name, defaultYear) {
+            const select = document.createElement('select');
+            select.name = name;
+            select.className = 'form-select';
+            const currentYear = new Date().getFullYear();
+            for (let y = currentYear; y >= 2020; y--) {
+                const option = new Option(y, y);
+                if (y == defaultYear) option.selected = true;
+                select.add(option);
+            }
+            return select;
         }
-        return select;
-    }
 
-    function createQuarterSelector(name, defaultQuarter) {
-        const select = document.createElement('select');
-        select.name = name;
-        select.className = 'form-select';
-        for (let q = 1; q <= 4; q++) {
-            const option = new Option(`第 ${q} 季`, q);
-            if (q == defaultQuarter) option.selected = true;
-            select.add(option);
+        function createQuarterSelector(name, defaultQuarter) {
+            const select = document.createElement('select');
+            select.name = name;
+            select.className = 'form-select';
+            for (let q = 1; q <= 4; q++) {
+                const option = new Option(`第 ${q} 季`, q);
+                if (q == defaultQuarter) option.selected = true;
+                select.add(option);
+            }
+            return select;
         }
-        return select;
-    }
-    
-    function updateFormUI() {
-        const selectedType = reportTypeSelect.value;
-        if (selectedType === 'periodic_performance') {
-            standardDateFields.style.display = 'none';
-            periodicDateFields.style.display = 'block';
-            timeUnitWrapper.classList.replace('placeholder-hidden', 'placeholder-visible');
-            updatePeriodicSelectors();
-        } else {
-            standardDateFields.style.display = 'block';
-            periodicDateFields.style.display = 'none';
-            timeUnitWrapper.classList.replace('placeholder-visible', 'placeholder-hidden');
-        }
-        locationSelect.disabled = (selectedType === 'combined_summary_final');
-        if (selectedType === 'combined_summary_final') {
-            locationSelect.value = 'all';
-        }
-    }
 
-    function updatePeriodicSelectors() {
-        const unit = timeUnitSelect.value;
-        periodA_container.innerHTML = '';
-        periodB_container.innerHTML = '';
-        const now = new Date();
-        const lastYear = now.getFullYear() - 1;
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth();
-        const currentQuarter = Math.floor(currentMonth / 3) + 1;
+        function updateFormUI() {
+            const selectedType = reportTypeSelect.value;
+            if (selectedType === 'periodic_performance') {
+                standardDateFields.style.display = 'none';
+                periodicDateFields.style.display = 'block';
+                timeUnitWrapper.classList.replace('placeholder-hidden', 'placeholder-visible');
+                updatePeriodicSelectors();
+            } else {
+                standardDateFields.style.display = 'block';
+                periodicDateFields.style.display = 'none';
+                timeUnitWrapper.classList.replace('placeholder-visible', 'placeholder-hidden');
+            }
+            locationSelect.disabled = (selectedType === 'combined_summary_final');
+            if (selectedType === 'combined_summary_final') {
+                locationSelect.value = 'all';
+            }
+        }
 
-        if (unit === 'month') {
-            const inputA = document.createElement('input');
-            inputA.className = 'form-control'; inputA.name = 'period_a';
-            periodA_container.appendChild(inputA);
-            flatpickr(inputA, {
-                plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "Y F" })],
-                locale: taiwanLocale,
-                defaultDate: `{{ request.args.get('period_a', '') }}` || `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+        function updatePeriodicSelectors() {
+            const unit = timeUnitSelect.value;
+            periodA_container.innerHTML = '';
+            periodB_container.innerHTML = '';
+            const now = new Date();
+            const lastYear = now.getFullYear() - 1;
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+            const currentQuarter = Math.floor(currentMonth / 3) + 1;
+
+            if (unit === 'month') {
+                const inputA = document.createElement('input');
+                inputA.className = 'form-control'; inputA.name = 'period_a';
+                periodA_container.appendChild(inputA);
+                flatpickr(inputA, {
+                    plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "Y F" })],
+                    locale: taiwanLocale,
+                    defaultDate: `{{ request.args.get('period_a', '') }}` || `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+                });
+
+                const inputB = document.createElement('input');
+                inputB.className = 'form-control'; inputB.name = 'period_b';
+                periodB_container.appendChild(inputB);
+                flatpickr(inputB, {
+                    plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "Y F" })],
+                    locale: taiwanLocale,
+                    defaultDate: `{{ request.args.get('period_b', '') }}` || `${lastYear}-${String(currentMonth + 1).padStart(2, '0')}`
+                });
+            } else if (unit === 'quarter') {
+                periodA_container.appendChild(createYearSelector('year_a', `{{ request.args.get('year_a', '') }}` || currentYear));
+                periodA_container.appendChild(createQuarterSelector('quarter_a', `{{ request.args.get('quarter_a', '') }}` || currentQuarter));
+                periodB_container.appendChild(createYearSelector('year_b', `{{ request.args.get('year_b', '') }}` || lastYear));
+                periodB_container.appendChild(createQuarterSelector('quarter_b', `{{ request.args.get('quarter_b', '') }}` || currentQuarter));
+            } else if (unit === 'year') {
+                periodA_container.appendChild(createYearSelector('year_a', `{{ request.args.get('year_a', '') }}` || currentYear));
+                periodB_container.appendChild(createYearSelector('year_b', `{{ request.args.get('year_b', '') }}` || lastYear));
+            }
+        }
+
+        reportTypeSelect.addEventListener('change', updateFormUI);
+        timeUnitSelect.addEventListener('change', updatePeriodicSelectors);
+        updateFormUI();
+
+        let dateStatusCache = {};
+        function fetchDateStatus(instance, callback) {
+            const year = instance.currentYear; const month = instance.currentMonth + 1; const cacheKey = `${year}-${month}`;
+            if (dateStatusCache[cacheKey]) { if (callback) callback(); return; }
+            fetch(`{{ url_for('report.query_status_api') }}?year=${year}&month=${month}`)
+                .then(response => response.json())
+                .then(data => { dateStatusCache[cacheKey] = data; if (callback) callback(); });
+        }
+
+        const flatpickrConfig = {
+            locale: "zh_tw", dateFormat: "Y-m-d",
+            onReady: (d, s, i) => fetchDateStatus(i, () => i.redraw()),
+            onMonthChange: (d, s, i) => fetchDateStatus(i, () => i.redraw()),
+            onDayCreate: (dObj, dStr, fp, dayElem) => {
+                const date = dayElem.dateObj;
+                const cacheKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+                const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                const statusData = dateStatusCache[cacheKey];
+                if (statusData && statusData[isoDate]) {
+                    const dot = document.createElement('span');
+                    dot.className = `day-status-dot dot-${statusData[isoDate].replace('_', '-')}`;
+                    dayElem.appendChild(dot);
+                }
+            }
+        };
+
+        flatpickr("#startDatePicker", { ...flatpickrConfig, defaultDate: "{{ request.args.get('start_date', form.start_date.data.isoformat() if form.start_date.data else 'today') }}" });
+        flatpickr("#endDatePicker", { ...flatpickrConfig, defaultDate: "{{ request.args.get('end_date', form.end_date.data.isoformat() if form.end_date.data else '') }}" });
+
+        const chartDataJson = '{{ chart_data | safe or "{}" }}';
+        if (chartDataJson && chartDataJson !== '{}') {
+            const chartData = JSON.parse(chartDataJson);
+            const chartWrapper = document.querySelector('.chart-wrapper');
+            const chartContainer = document.querySelector('.chart-container');
+            const ctx = document.getElementById('myChart');
+
+            // Initial sizing based on wrapper's height
+            function setContainerWidthByRatio(ratio) {
+                const wrapperHeight = chartWrapper.clientHeight;
+                let newWidth = wrapperHeight * ratio;
+                const maxWidth = chartWrapper.clientWidth;
+                if (newWidth > maxWidth) {
+                    newWidth = maxWidth;
+                }
+                chartContainer.style.maxWidth = `${newWidth}px`;
+            }
+
+            // Initially set to 16:9
+            setContainerWidthByRatio(16 / 9);
+
+            // Resize observer to handle window resize events
+            const observer = new ResizeObserver(() => {
+                setContainerWidthByRatio(currentAspectRatio);
             });
+            observer.observe(chartWrapper);
 
-            const inputB = document.createElement('input');
-            inputB.className = 'form-control'; inputB.name = 'period_b';
-            periodB_container.appendChild(inputB);
-            flatpickr(inputB, {
-                plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "Y F" })],
-                locale: taiwanLocale,
-                defaultDate: `{{ request.args.get('period_b', '') }}` || `${lastYear}-${String(currentMonth + 1).padStart(2, '0')}`
-            });
-        } else if (unit === 'quarter') {
-            periodA_container.appendChild(createYearSelector('year_a', `{{ request.args.get('year_a', '') }}` || currentYear));
-            periodA_container.appendChild(createQuarterSelector('quarter_a', `{{ request.args.get('quarter_a', '') }}` || currentQuarter));
-            periodB_container.appendChild(createYearSelector('year_b', `{{ request.args.get('year_b', '') }}` || lastYear));
-            periodB_container.appendChild(createQuarterSelector('quarter_b', `{{ request.args.get('quarter_b', '') }}` || currentQuarter));
-        } else if (unit === 'year') {
-            periodA_container.appendChild(createYearSelector('year_a', `{{ request.args.get('year_a', '') }}` || currentYear));
-            periodB_container.appendChild(createYearSelector('year_b', `{{ request.args.get('year_b', '') }}` || lastYear));
-        }
-    }
-    
-    reportTypeSelect.addEventListener('change', updateFormUI);
-    timeUnitSelect.addEventListener('change', updatePeriodicSelectors);
-    updateFormUI();
+            if (ctx && chartData && chartData.labels && chartData.labels.length > 0) {
+                const reportType = '{{ report_type }}';
+                let defaultType = 'bar';
+                if (reportType === 'sales_trend') defaultType = 'line';
+                if (reportType === 'product_mix' || reportType === 'daily_cash_summary') defaultType = 'pie';
 
-    let dateStatusCache = {};
-    function fetchDateStatus(instance, callback) {
-        const year = instance.currentYear; const month = instance.currentMonth + 1; const cacheKey = `${year}-${month}`;
-        if (dateStatusCache[cacheKey]) { if (callback) callback(); return; }
-        fetch(`{{ url_for('report.query_status_api') }}?year=${year}&month=${month}`)
-            .then(response => response.json())
-            .then(data => { dateStatusCache[cacheKey] = data; if (callback) callback(); });
-    }
-    
-    const flatpickrConfig = {
-        locale: "zh_tw", dateFormat: "Y-m-d",
-        onReady: (d, s, i) => fetchDateStatus(i, () => i.redraw()),
-        onMonthChange: (d, s, i) => fetchDateStatus(i, () => i.redraw()),
-        onDayCreate: (dObj, dStr, fp, dayElem) => {
-            const date = dayElem.dateObj;
-            const cacheKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
-            const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-            const statusData = dateStatusCache[cacheKey];
-            if (statusData && statusData[isoDate]) {
-                const dot = document.createElement('span');
-                dot.className = `day-status-dot dot-${statusData[isoDate].replace('_', '-')}`;
-                dayElem.appendChild(dot);
-            }
-        }
-    };
-
-    flatpickr("#startDatePicker", { ...flatpickrConfig, defaultDate: "{{ request.args.get('start_date', form.start_date.data.isoformat() if form.start_date.data else 'today') }}" });
-    flatpickr("#endDatePicker", { ...flatpickrConfig, defaultDate: "{{ request.args.get('end_date', form.end_date.data.isoformat() if form.end_date.data else '') }}" });
-
-    const chartDataJson = '{{ chart_data | safe or "{}" }}';
-    if(chartDataJson && chartDataJson !== '{}') {
-        const chartData = JSON.parse(chartDataJson);
-        const chartWrapper = document.querySelector('.chart-wrapper');
-        const chartContainer = document.querySelector('.chart-container');
-        const ctx = document.getElementById('myChart');
-
-        // Initial sizing based on wrapper's height
-        function setContainerWidthByRatio(ratio) {
-            const wrapperHeight = chartWrapper.clientHeight;
-            let newWidth = wrapperHeight * ratio;
-            const maxWidth = chartWrapper.clientWidth;
-            if (newWidth > maxWidth) {
-                newWidth = maxWidth;
-            }
-            chartContainer.style.maxWidth = `${newWidth}px`;
-        }
-
-        // Initially set to 16:9
-        setContainerWidthByRatio(16/9);
-
-        // Resize observer to handle window resize events
-        const observer = new ResizeObserver(() => {
-            setContainerWidthByRatio(currentAspectRatio);
-        });
-        observer.observe(chartWrapper);
-        
-        if (ctx && chartData && chartData.labels && chartData.labels.length > 0) {
-            const reportType = '{{ report_type }}';
-            let defaultType = 'bar';
-            if (reportType === 'sales_trend') defaultType = 'line';
-            if (reportType === 'product_mix' || reportType === 'daily_cash_summary') defaultType = 'pie';
-
-            const config = { 
-                type: defaultType, 
-                data: chartData, 
-                options: { 
-                    responsive: true,
-                    maintainAspectRatio: false, // 關鍵修正：讓圖表自由適應容器
-                    scales: { 
-                        y: { 
-                            beginAtZero: true, 
-                            display: (defaultType !== 'pie') 
-                        }, 
-                        y1: { 
-                            beginAtZero: true, 
-                            display: false, 
-                            position: 'right' 
-                        } 
-                    }, 
-                    plugins: { 
-                        title: { 
-                            display: true, 
-                            text: document.querySelector('#reportTypeSelect option:checked').text 
-                        }, 
-                        legend: { 
-                            position: 'top' 
-                        } 
-                    } 
-                } 
-            };
-            
-            // For sales trend, enable the second Y-axis
-            if (reportType === 'sales_trend') { 
-                config.options.scales.y1.display = true; 
-            }
-
-            myChart = new Chart(ctx, config);
-
-            document.querySelectorAll('.chart-type-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    const type = this.dataset.type;
-                    myChart.config.type = type;
-                    const isPie = (type === 'pie');
-                    
-                    // Pie chart does not have Y axes
-                    myChart.options.scales.y.display = !isPie;
-                    if (myChart.options.scales.y1) {
-                         myChart.options.scales.y1.display = !isPie && (reportType === 'sales_trend');
+                const config = {
+                    type: defaultType,
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false, // 關鍵修正：讓圖表自由適應容器
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                display: (defaultType !== 'pie')
+                            },
+                            y1: {
+                                beginAtZero: true,
+                                display: false,
+                                position: 'right'
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: document.querySelector('#reportTypeSelect option:checked').text
+                            },
+                            legend: {
+                                position: 'top'
+                            }
+                        }
                     }
-                    myChart.update();
-                });
-            });
+                };
 
-            document.querySelectorAll('.ratio-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
-                    this.classList.add('active');
-                    currentAspectRatio = (this.dataset.ratio === '16/9') ? 16/9 : 4/3;
-                    setContainerWidthByRatio(currentAspectRatio);
+                // For sales trend, enable the second Y-axis
+                if (reportType === 'sales_trend') {
+                    config.options.scales.y1.display = true;
+                }
+
+                myChart = new Chart(ctx, config);
+
+                document.querySelectorAll('.chart-type-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        const type = this.dataset.type;
+                        myChart.config.type = type;
+                        const isPie = (type === 'pie');
+
+                        // Pie chart does not have Y axes
+                        myChart.options.scales.y.display = !isPie;
+                        if (myChart.options.scales.y1) {
+                            myChart.options.scales.y1.display = !isPie && (reportType === 'sales_trend');
+                        }
+                        myChart.update();
+                    });
                 });
-            });
-            
-            document.getElementById('download-chart-btn').addEventListener('click', function() {
-                const link = document.createElement('a');
-                link.href = myChart.toBase64Image('image/png', 1);
-                link.download = `chart_${reportType}.png`;
-                link.click();
-            });
+
+                document.querySelectorAll('.ratio-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
+                        this.classList.add('active');
+                        currentAspectRatio = (this.dataset.ratio === '16/9') ? 16 / 9 : 4 / 3;
+                        setContainerWidthByRatio(currentAspectRatio);
+                    });
+                });
+
+                document.getElementById('download-chart-btn').addEventListener('click', function () {
+                    const link = document.createElement('a');
+                    link.href = myChart.toBase64Image('image/png', 1);
+                    link.download = `chart_${reportType}.png`;
+                    link.click();
+                });
+            }
         }
-    }
-});
+    });
 </script>
 {% endblock %}

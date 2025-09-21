@@ -32,6 +32,9 @@
                     </li>
                     {% if current_user.is_authenticated and current_user.has_role('Admin') %}
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin.force_close_query') }}">補登日結</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('report.query') }}">報表查詢</a>
                     </li>
                     <li class="nav-item">
@@ -49,8 +52,6 @@
                             <li><a class="dropdown-item" href="{{ url_for('admin.list_locations') }}">據點管理</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin.list_users') }}">使用者管理</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin.list_roles') }}">角色權限設定</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin.force_close_query') }}">補登日結</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('cashier.settings') }}">系統設定</a></li>
                         </ul>

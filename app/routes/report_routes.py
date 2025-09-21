@@ -364,12 +364,31 @@ def export_csv():
             return redirect(url_for('report.query'))
 
     if report_type == 'daily_summary':
-        header = ['日期', '據點', '開店金', '銷售總額', '帳面總額', '盤點現金', '帳差', '交易筆數', '銷售件數']
+        header = ['日期', '據點', '開店現金', '手帳營收', '其他現金', '應有現金', '實有現金', '溢短收', '交易筆數', '銷售件數']
         query = db.session.query(BusinessDay).filter(BusinessDay.date.between(start_date, end_date))
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
         results = query.order_by(BusinessDay.date.desc(), BusinessDay.location_id).all()
-        for day in results:
-            results_to_write.append([day.date.strftime('%Y-%m-%d'), day.location.name, day.opening_cash, day.total_sales, day.expected_cash, day.closing_cash, day.cash_diff, day.total_transactions, day.total_items])
+        for r in results:
+            other_income_totals = db.session.query(
+                Category.name,
+                func.sum(TransactionItem.price)
+            ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+                BusinessDay.id == r.id,
+                Category.category_type == 'other_income'
+            ).group_by(Category.name).all()
+            
+            donation_total = 0
+            other_total = 0
+            for name, total in other_income_totals:
+                if name == '捐款':
+                    donation_total = total
+                else:
+                    other_total += total
+            
+            results_to_write.append([
+                r.date.strftime('%Y-%m-%d'), r.location.name, r.opening_cash, r.total_sales, (donation_total or 0) + (other_total or 0),
+                r.expected_cash, r.closing_cash, r.cash_diff, r.total_transactions, r.total_items
+            ])
     
     elif report_type == 'daily_cash_summary':
         header = ['日期', '據點', '開店現金', '手帳營收', '其他現金', '應有現金', '實有現金', '溢短收', '交易筆數', '銷售件數']
