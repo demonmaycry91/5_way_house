@@ -55,7 +55,7 @@ def query():
     all_categories = Category.query.all()
     form.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
 
-    results = None
+    results = []
     grand_total = None
     chart_data = None
     total_revenue = 0

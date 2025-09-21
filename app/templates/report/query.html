@@ -153,6 +153,10 @@
     #cash-check-table td:nth-child(3) {
         width: 100px;
     }
+
+    .card-header {
+    min-height: 48px;
+    }
 </style>
 {% endblock %}
 
@@ -217,10 +221,10 @@
 {% if results is not none %}
 <div class="card mt-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">查詢結果</h5>
+        <span class="fw-bold">查詢結果</span>
         <div class="d-flex align-items-center">
             <div class="btn-group me-2" role="group">
-                {% if request.args.get('report_type') in ['daily_summary', 'daily_cash_check', 'transaction_log'] %}
+                {% if request.args.get('report_type') in ['daily_summary', 'daily_cash_check', 'transaction_log', 'daily_cash_summary'] %}
                 <button type="button" class="btn btn-sm btn-secondary edit-button">編輯</button>
                 <button type="submit" form="editable-form-{{ request.args.get('report_type') }}"
                     class="btn btn-sm btn-success save-button" style="display: none;">儲存</button>
