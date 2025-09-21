@@ -46,29 +46,29 @@
             <table class="table table-borderless fs-5 mb-0">
                 <tbody>
                     <tr>
-                        <td>開店準備金</td>
+                        <td>開店現金</td>
                         <td class="text-end" style="width: 1rem;">$</td>
                         {# 使用 Jinja2 的 filter 來格式化數字：round(2) 四捨五入到小數點後兩位，int 轉為整數 #}
                         <td class="text-end" style="width: 10ch;">{{ day.opening_cash | round(2) | int }}</td>
                     </tr>
                     <tr>
-                        <td>本日銷售總額</td>
+                        <td>手帳營收</td>
                         <td class="text-end" style="width: 1rem;">$</td>
                         <td class="text-end" style="width: 10ch;">{{ day.total_sales | round(2) | int }}</td>
                     </tr>
                     {# [新增] 其他收入行 #}
                     <tr>
-                        <td>其他收入</td>
+                        <td>其他現金</td>
                         <td class="text-end" style="width: 1rem;">$</td>
                         <td class="text-end" style="width: 10ch;">{{ other_income_total | round(2) | int }}</td>
                     </tr>
                     <tr class="fw-bold">
-                        <td>帳面總額 (A)</td>
+                        <td>應有現金 (A)</td>
                         <td class="text-end fw-bold" style="width: 1rem;">$</td>
                         <td class="text-end fw-bold" style="width: 10ch;">{{ expected_total | round(2) | int }}</td>
                     </tr>
                     <tr>
-                        <td class="fw-bold">盤點現金合計 (B)</td>
+                        <td class="fw-bold">實有現金 (B)</td>
                         <td class="text-end fw-bold" style="width: 1rem;">$</td>
                         <td class="text-end fw-bold" style="width: 10ch;">{{ day.closing_cash | round(2) | int }}
                         </td>
@@ -76,7 +76,7 @@
                     <tr class="fw-bolder">
                         {# 根據「帳差」是正數、負數還是零，動態地為文字套用不同的顏色 (text-danger, text-primary, text-success) #}
                         <td class="{% if difference < 0 %}text-danger{% elif difference > 0 %}text-primary{% else %}text-success{% endif %}">
-                            帳差 (B - A)
+                            溢短收　 (B - A)
                         </td>
                         <td class="text-end {% if difference < 0 %}text-danger{% elif difference > 0 %}text-primary{% else %}text-success{% endif %}"
                             style="width: 1rem;">
@@ -99,11 +99,11 @@
     <div class="card-body">
         <ul class="list-group list-group-flush">
             <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
-                交易筆數 (顧客總數)
+                交易筆數（顧客總數）
                 <span class="badge bg-primary rounded-pill fs-6">{{ day.total_transactions }} 筆</span>
             </li>
             <li class="list-group-item d-flex justify-content-between align-items-center fs-5">
-                銷售件數 (商品總數)
+                銷售件數（商品總數）
                 <span class="badge bg-primary rounded-pill fs-6">{{ day.total_items }} 件</span>
             </li>
         </ul>

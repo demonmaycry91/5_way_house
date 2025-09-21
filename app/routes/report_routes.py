@@ -59,7 +59,7 @@ def query():
     grand_total = None
     chart_data = None
     total_revenue = 0
-    report_type = request.args.get('report_type', 'daily_summary')
+    report_type = request.args.get('report_type')
     form.report_type.data = report_type
 
     if report_type:
