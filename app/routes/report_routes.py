@@ -372,7 +372,7 @@ def export_csv():
             results_to_write.append([day.date.strftime('%Y-%m-%d'), day.location.name, day.opening_cash, day.total_sales, day.expected_cash, day.closing_cash, day.cash_diff, day.total_transactions, day.total_items])
     
     elif report_type == 'daily_cash_summary':
-        header = ['日期', '據點', '開店現金', '手帳營收', '應有現金', '實有現金', '溢短收', '捐款', '其他收入', '其他現金(總)', '備註']
+        header = ['日期', '據點', '開店現金', '手帳營收', '其他現金', '應有現金', '實有現金', '溢短收', '交易筆數', '銷售件數']
         query = db.session.query(BusinessDay).filter(BusinessDay.date.between(start_date, end_date))
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
         results = query.order_by(BusinessDay.date, BusinessDay.location_id).all()
@@ -394,8 +394,8 @@ def export_csv():
                     other_total += total
             
             results_to_write.append([
-                r.date.strftime('%Y-%m-%d'), r.location.name, r.opening_cash, r.total_sales, r.expected_cash,
-                r.closing_cash, r.cash_diff, donation_total, other_total, (donation_total or 0) + (other_total or 0), r.location_notes
+                r.date.strftime('%Y-%m-%d'), r.location.name, r.opening_cash, r.total_sales, (donation_total or 0) + (other_total or 0), r.expected_cash,
+                r.closing_cash, r.cash_diff, r.total_transactions, r.total_items
             ])
 
     elif report_type == 'daily_cash_check':
