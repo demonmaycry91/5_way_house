@@ -1,0 +1,15 @@
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pip-tools
+pip install --upgrade pip
+pip-compile requirements.in
+pip install -r requirements.txt
+pip-sync
+export FLASK_APP=run.py
+# 刪除專案根目錄中的 instance/app.db 檔案。
+# 刪除專案根目錄中的 migrations 資料夾。
+flask db init
+flask db migrate -m "Initial migration"
+flask db upgrade
+flask auth init-roles
+flask auth create-user <username> <password> --role Admin

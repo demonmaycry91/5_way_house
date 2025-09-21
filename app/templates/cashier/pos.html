@@ -264,14 +264,19 @@ button_text='返回儀表板'
         </div>
 
         <div class="d-grid mt-auto">
-            <a href="{{ url_for('cashier.close_day', location_slug=location.slug) }}" class="btn btn-danger btn-lg">結束營業
-                (日結)</a>
+            {# 將原有的 a 連結替換為帶有 onclick 事件的按鈕 #}
+            <button type="button" class="btn btn-danger btn-lg" onclick="confirmCloseDay()">結束營業 (日結)</button>
         </div>
     </div>
 </div>
 
 <script>
     const POS_LOCATION_SLUG = "{{ location.slug }}";
+    function confirmCloseDay() {
+        if (confirm("您確定要結束本日營業並進入日結盤點流程嗎？")) {
+            window.location.href = "{{ url_for('cashier.close_day', location_slug=location.slug) }}";
+        }
+    }
 </script>
 <script src="{{ url_for('static', filename='js/pos_scripts.js') }}"></script>
 {% endblock %}

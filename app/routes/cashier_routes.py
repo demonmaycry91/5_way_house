@@ -337,7 +337,10 @@ def close_day(location_slug):
     location = Location.query.filter_by(slug=location_slug).first_or_404()
     today = date.today()
     business_day = BusinessDay.query.filter_by(
-        date=today, location_id=location.id, status="OPEN").first()
+        date=today, location_id=location.id
+    ).filter(
+        BusinessDay.status.in_(["OPEN", "PENDING_REPORT"])
+    ).first()
     if not business_day:
         flash(f'據點 "{location.name}" 今日並非營業中狀態，無法進行日結。', "warning")
         return redirect(url_for("cashier.dashboard"))

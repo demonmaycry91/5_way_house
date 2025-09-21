@@ -371,16 +371,48 @@ def export_csv():
         for day in results:
             results_to_write.append([day.date.strftime('%Y-%m-%d'), day.location.name, day.opening_cash, day.total_sales, day.expected_cash, day.closing_cash, day.cash_diff, day.total_transactions, day.total_items])
     
-    elif report_type in ['daily_cash_summary', 'daily_cash_check']:
+    elif report_type == 'daily_cash_summary':
         header = ['日期', '據點', '開店現金', '手帳營收', '應有現金', '實有現金', '溢短收', '捐款', '其他收入', '其他現金(總)', '備註']
         query = db.session.query(BusinessDay).filter(BusinessDay.date.between(start_date, end_date))
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
         results = query.order_by(BusinessDay.date, BusinessDay.location_id).all()
-        for day in results:
+        for r in results:
+            other_income_totals = db.session.query(
+                Category.name,
+                func.sum(TransactionItem.price)
+            ).join(TransactionItem.transaction).join(Transaction.business_day).join(TransactionItem.category).filter(
+                BusinessDay.id == r.id,
+                Category.category_type == 'other_income'
+            ).group_by(Category.name).all()
+            
+            donation_total = 0
+            other_total = 0
+            for name, total in other_income_totals:
+                if name == '捐款':
+                    donation_total = total
+                else:
+                    other_total += total
+            
             results_to_write.append([
-                day.date.strftime('%Y-%m-%d'), day.location.name, day.opening_cash, day.total_sales, day.expected_cash,
-                day.closing_cash, day.cash_diff, day.donation_total, day.other_total, (day.donation_total or 0) + (day.other_total or 0), day.location_notes
+                r.date.strftime('%Y-%m-%d'), r.location.name, r.opening_cash, r.total_sales, r.expected_cash,
+                r.closing_cash, r.cash_diff, donation_total, other_total, (donation_total or 0) + (other_total or 0), r.location_notes
             ])
+
+    elif report_type == 'daily_cash_check':
+        header = ['日期', '據點', '總計'] + [str(d) for d in DENOMINATIONS]
+        query = db.session.query(BusinessDay).filter(BusinessDay.date.between(start_date, end_date))
+        if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
+        results = query.order_by(BusinessDay.date, BusinessDay.location_id).all()
+        for r in results:
+            cash_breakdown = json.loads(r.cash_breakdown) if r.cash_breakdown else {}
+            row_data = [
+                r.date.strftime('%Y-%m-%d'), 
+                r.location.name, 
+                r.closing_cash or 0
+            ]
+            for denom in DENOMINATIONS:
+                row_data.append(cash_breakdown.get(str(denom), 0))
+            results_to_write.append(row_data)
 
     elif report_type == 'transaction_log':
         header = ['時間', '據點', '項目/折扣', '類型', '單價/折扣額', '收到現金', '交易總額', '找零']
@@ -671,7 +703,7 @@ def print_settlement(date_str):
         grand_total=grand_total, remarks_data=remarks_data, finance_items=finance_items, sales_items=sales_items
     )
     pdf = HTML(string=html_to_render).write_pdf()
-    return Response(pdf, mimetype="application/pdf", headers={"Content-disposition": f"attachment;filename=settlement_report_{report_date.isoformat()}.pdf"})
+    return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f"attachment;filename=settlement_report_{report_date.isoformat()}.pdf"})
 
 @bp.route('/api/settlement_status')
 @login_required
