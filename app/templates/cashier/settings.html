@@ -46,7 +46,7 @@ subtitle='管理 Google 帳號連結與雲端備份選項'
                 </div>
             </div>
 
-            <form method="POST" action="{{ url_for('cashier.settings') }}">
+            <form method="POST" action="{{ url_for('cashier.settings') }}" id="settings-form">
                 {{ form.hidden_tag() }}
 
                 {# --- Google Sheets 備份設定區塊 --- #}
@@ -93,15 +93,21 @@ subtitle='管理 Google 帳號連結與雲端備份選項'
                         <div class="mb-3">
                             {{ form.backup_frequency.label(class="form-label") }}
                             {% for subfield in form.backup_frequency %}
-                            <div class="form-check">
-                                {{ subfield(class="form-check-input") }}
-                                {{ subfield.label(class="form-check-label") }}
+                            <div class="form-check {% if subfield.id == 'backup_frequency-3' %}d-flex align-items-center{% endif %}">
+                                <div class="flex-shrink-0">
+                                    {{ subfield(class="form-check-input", id=subfield.id) }}
+                                </div>
+                                <div class="flex-grow-1 ms-2">
+                                    {{ subfield.label(class="form-check-label") }}
+                                </div>
+                                {% if subfield.id == 'backup_frequency-3' %}
+                                <div class="input-group ms-3" style="width: 150px;">
+                                    {{ form.backup_interval_minutes(class="form-control", min="1", id="backup_interval_input") }}
+                                    <span class="input-group-text">分鐘</span>
+                                </div>
+                                {% endif %}
                             </div>
                             {% endfor %}
-                            <div class="input-group mt-2">
-                                {{ form.backup_interval_hours(class="form-control", min="1") }}
-                                <span class="input-group-text">小時</span>
-                            </div>
                             <div class="form-text">固定間隔備份需要應用程式持續運行。</div>
                         </div>
                     </div>
@@ -118,7 +124,7 @@ subtitle='管理 Google 帳號連結與雲端備份選項'
                     手動備份工具
                 </div>
                 <div class="card-body">
-                    <p>此工具會將您資料庫中<b>所有</b>據點的<b>所有</b>歷史報表資料，完整地重新備份到您的 Google Sheets。這是一個耗時的操作，將會在背景執行。</p>
+                    <p>此工具會將您資料庫中**所有**據點的**所有**歷史報表資料，完整地重新備份到您的 Google Sheets。這是一個耗時的操作，將會在背景執行。</p>
                     <form method="POST" action="{{ url_for('cashier.rebuild_backup') }}"
                         onsubmit="return confirmBackup(this);">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -128,11 +134,17 @@ subtitle='管理 Google 帳號連結與雲端備份選項'
                                 <strong>覆蓋現有檔案</strong>：若勾選，Google Drive 上的同名備份檔案將會被刪除並重建。
                             </label>
                         </div>
-                        <button type="submit" class="btn btn-danger">立即執行完整備份</button>
+                        <button type="submit" class="btn btn-danger">立即執行完整備份 (報表)</button>
+                    </form>
+                    <hr class="my-3">
+                    <p>此按鈕會立即將 `instance/` 資料夾中的**選定檔案**備份到 Google Drive。此操作會產生新檔案，不會覆蓋舊檔案。</p>
+                    <form method="POST" action="{{ url_for('cashier.manual_instance_backup') }}"
+                        onsubmit="return confirm('確定要立即執行資料庫與憑證備份嗎？');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-success">立即備份資料庫與憑證</button>
                     </form>
                 </div>
             </div>
-
         </div>
     </div>
 </div>
@@ -148,5 +160,24 @@ subtitle='管理 Google 帳號連結與雲端備份選項'
         }
         return confirm(message);
     }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const frequencyRadios = document.querySelectorAll('input[name="backup_frequency"]');
+        const intervalInput = document.getElementById('backup_interval_input');
+        
+        function toggleIntervalInput() {
+            const fixedIntervalRadio = document.getElementById('backup_frequency-3');
+            if (fixedIntervalRadio) {
+                intervalInput.disabled = !fixedIntervalRadio.checked;
+            }
+        }
+        
+        frequencyRadios.forEach(radio => {
+            radio.addEventListener('change', toggleIntervalInput);
+        });
+        
+        // 頁面載入時執行一次，以處理預設值
+        toggleIntervalInput(); 
+    });
 </script>
 {% endblock %}

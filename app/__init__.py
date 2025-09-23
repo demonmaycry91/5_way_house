@@ -73,19 +73,19 @@ def create_app():
     auth_commands.init_app(app)
 
     # 備份邏輯已移至此處，以確保在應用程式上下文中執行
-    # from .services.backup_service import backup_instance_to_drive, BackupScheduler
-    # from .models import SystemSetting
+    from .services.backup_service import backup_instance_to_drive, BackupScheduler
+    from .models import SystemSetting
     
-    # with app.app_context():
-    #     backup_frequency = SystemSetting.get('instance_backup_frequency', 'off')
-    #     if backup_frequency == 'startup':
-    #         backup_instance_to_drive()
-    #     elif backup_frequency == 'shutdown':
-    #         atexit.register(backup_instance_to_drive)
-    #     elif backup_frequency == 'interval':
-    #         scheduler = BackupScheduler(app)
-    #         scheduler.daemon = True
-    #         scheduler.start()
-    #         atexit.register(scheduler.stop)
+    with app.app_context():
+        backup_frequency = SystemSetting.get('instance_backup_frequency', 'off')
+        if backup_frequency == 'startup':
+            backup_instance_to_drive()
+        elif backup_frequency == 'shutdown':
+            atexit.register(backup_instance_to_drive)
+        elif backup_frequency == 'interval':
+            scheduler = BackupScheduler(app)
+            scheduler.daemon = True
+            scheduler.start()
+            atexit.register(scheduler.stop)
 
     return app

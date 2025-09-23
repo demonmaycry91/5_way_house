@@ -1,6 +1,6 @@
 # app/forms.py
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField, MultipleFileField, RadioField, BooleanField
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField, BooleanField, RadioField
 from wtforms.fields import ColorField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
 from .models import User, Role, Category, Location
@@ -95,7 +95,6 @@ class ReportQueryForm(FlaskForm):
         super(ReportQueryForm, self).__init__(*args, **kwargs)
         self.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
 
-
 class SettlementRemarkForm(FlaskForm):
     key = HiddenField()
     value = StringField()
@@ -145,7 +144,6 @@ class UserForm(FlaskForm):
 
 class GoogleSettingsForm(FlaskForm):
     """用於管理 Google Drive 和 Sheets 設定的表單"""
-    # 原始的 POS 交易備份設定
     drive_folder_name = StringField(
         'Google Drive 資料夾名稱',
         validators=[DataRequired(message="請輸入資料夾名稱。")],
@@ -172,6 +170,6 @@ class GoogleSettingsForm(FlaskForm):
         ],
         default='off'
     )
-    backup_interval_hours = IntegerField('間隔時間 (小時)', validators=[Optional()])
+    backup_interval_minutes = IntegerField('間隔時間 (分鐘)', validators=[Optional()])
 
     submit = SubmitField('儲存設定')

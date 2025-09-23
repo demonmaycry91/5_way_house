@@ -11,8 +11,8 @@ from collections import defaultdict
 import requests
 
 # (get_google_creds, get_services, find_or_create_folder 維持不變)
-def get_google_creds():
-    token_file = os.path.join(current_app.instance_path, "token.json")
+def get_google_creds(app): # 修改：新增 app 參數
+    token_file = os.path.join(app.instance_path, "token.json") # 修改：使用 app
     creds = None
     if os.path.exists(token_file):
         creds = Credentials.from_authorized_user_file(token_file, ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets'])
@@ -23,15 +23,15 @@ def get_google_creds():
                 with open(token_file, "w") as token:
                     token.write(creds.to_json())
             except Exception as e:
-                current_app.logger.error(f"!!! 刷新 Google 憑證失敗: {e}")
+                app.logger.error(f"!!! 刷新 Google 憑證失敗: {e}") # 修改：使用 app
                 return None
         else:
-            current_app.logger.warning("!!! 找不到有效的 Google 憑證檔案。")
+            app.logger.warning("!!! 找不到有效的 Google 憑證檔案。") # 修改：使用 app
             return None
     return creds
 
-def get_services():
-    creds = get_google_creds()
+def get_services(app): # 修改：新增 app 參數
+    creds = get_google_creds(app) # 修改：傳入 app
     if not creds:
         return None, None
     drive_service = build("drive", "v3", credentials=creds)
@@ -154,7 +154,7 @@ def write_transaction_to_sheet_task(location_id, transaction_data, header_row):
             if not location:
                 current_app.logger.error(f"!!! [背景任務] 找不到 ID 為 {location_id} 的據點。")
                 return
-            drive_service, sheets_service = get_services()
+            drive_service, sheets_service = get_services(app)
             if not drive_service: return
             folder_name = SystemSetting.get('drive_folder_name', 'Cashier_System_Reports')
             folder_id = find_or_create_folder(drive_service, folder_name)
@@ -180,7 +180,7 @@ def write_report_to_sheet_task(location_id, report_data, header_row):
             if not location:
                 current_app.logger.error(f"!!! [背景任務] 找不到 ID 為 {location_id} 的據點。")
                 return
-            drive_service, sheets_service = get_services()
+            drive_service, sheets_service = get_services(app)
             if not drive_service: return
             folder_name = SystemSetting.get('drive_folder_name', 'Cashier_System_Reports')
             folder_id = find_or_create_folder(drive_service, folder_name)
@@ -252,7 +252,7 @@ def rebuild_backup_task(overwrite=False):
         from app import db
         current_app.logger.info(f"--- 開始執行完整備份任務 (Overwrite={overwrite}) ---")
         try:
-            drive_service, sheets_service = get_services()
+            drive_service, sheets_service = get_services(app)
             if not drive_service or not sheets_service:
                 current_app.logger.error("!!! 無法獲取 Google 服務，備份任務中止。")
                 return
@@ -307,10 +307,9 @@ def rebuild_backup_task(overwrite=False):
         except Exception as e:
             current_app.logger.error(f"!!! [完整備份任務] 發生未預期的嚴重錯誤: {e}", exc_info=True)
 
-def get_drive_user_info():
-    app = create_app()
+def get_drive_user_info(app):
     with app.app_context():
-        creds = get_google_creds()
+        creds = get_google_creds(app)
         if not creds:
             return None
         try:

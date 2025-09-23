@@ -1,3 +1,4 @@
+# app/routes/cashier_routes.py
 import os
 import json
 from flask import (
@@ -16,7 +17,7 @@ from ..models import User, BusinessDay, Transaction, Location, SystemSetting, Ca
 from .. import db, login_manager, csrf
 from ..forms import LoginForm, StartDayForm, CloseDayForm, ConfirmReportForm, GoogleSettingsForm
 from datetime import date, datetime
-from ..services import google_service
+from ..services import google_service, backup_service
 from sqlalchemy.orm import contains_eager
 from sqlalchemy import and_
 from ..decorators import admin_required
@@ -139,7 +140,7 @@ def settings():
         SystemSetting.set('instance_backup_files', json.dumps(backup_files))
         
         SystemSetting.set('instance_backup_frequency', form.backup_frequency.data)
-        SystemSetting.set('instance_backup_interval_hours', str(form.backup_interval_hours.data) if form.backup_interval_hours.data else '24')
+        SystemSetting.set('instance_backup_interval_minutes', str(form.backup_interval_minutes.data) if form.backup_interval_minutes.data else '60')
 
         flash('設定已儲存！', 'success')
         return redirect(url_for('cashier.settings'))
@@ -156,7 +157,7 @@ def settings():
         form.backup_client_secret.data = 'client_secret.json' in backup_files
 
         form.backup_frequency.data = SystemSetting.get('instance_backup_frequency', 'off')
-        form.backup_interval_hours.data = int(SystemSetting.get('instance_backup_interval_hours', '24') or 24)
+        form.backup_interval_minutes.data = int(SystemSetting.get('instance_backup_interval_minutes', '60') or 60)
 
     token_path = os.path.join(current_app.instance_path, "token.json")
     is_connected = os.path.exists(token_path)
@@ -196,6 +197,18 @@ def rebuild_backup():
     )
 
     flash('已成功提交完整備份請求！備份將在背景執行，請稍後至 Google Drive 查閱結果。', 'info')
+    return redirect(url_for('cashier.settings'))
+
+@bp.route('/manual_instance_backup', methods=['POST'])
+@login_required
+@admin_required
+def manual_instance_backup():
+    try:
+        backup_service.backup_instance_to_drive()
+        flash('已成功手動執行資料庫與憑證備份。', 'success')
+    except Exception as e:
+        flash(f'手動備份失敗：{e}', 'danger')
+        current_app.logger.error(f'手動備份失敗: {e}')
     return redirect(url_for('cashier.settings'))
 
 

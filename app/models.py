@@ -1,4 +1,3 @@
-# app/models.py
 from . import db
 from datetime import datetime, timezone
 from flask_login import UserMixin
@@ -82,7 +81,7 @@ class Category(db.Model):
     color = db.Column(db.String(7), nullable=False, default='#cccccc')
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
     
-    # --- 新增 'other_income' 類別類型 ---
+    # --- 修正點：新增 'other_income' 類別類型 ---
     category_type = db.Column(db.String(30), nullable=False, default='product', server_default='product')
     discount_rules = db.Column(db.Text, nullable=True)
 
@@ -189,6 +188,5 @@ class SystemSetting(db.Model):
             setting = SystemSetting(key=key, value=value)
             db.session.add(setting)
         db.session.commit()
-        # 清除快取以確保下次讀取的是最新值
         if hasattr(g, 'system_settings'):
             g.system_settings = None
