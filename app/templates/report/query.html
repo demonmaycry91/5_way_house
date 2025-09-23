@@ -46,26 +46,40 @@
         transition: max-width 0.5s ease-in-out;
     }
 
-    .form-row-container {
+    /* 修正: 新增 Flexbox 容器，確保篩選器在同一行 */
+    .filter-controls {
         display: flex;
+        align-items: flex-end;
         flex-wrap: wrap;
         gap: 1rem;
-        align-items: flex-end;
     }
-
-    .form-group {
-        flex: 1 1 auto;
+    
+    .filter-item {
+        display: flex;
+        flex-direction: column;
         min-width: 150px;
     }
 
-    .periodic-group {
+    .date-range-group {
         display: flex;
         gap: 0.5rem;
     }
 
-    .submit-group {
-        margin-left: auto;
+    .date-range-item {
+        flex-grow: 1;
     }
+
+    .submit-button-item {
+        /* 將按鈕推到最右側，並與其他項目底部對齊 */
+        margin-left: auto;
+        align-self: flex-end;
+    }
+    
+    /* 確保輸入框在日期區間內佔滿空間 */
+    #dynamic-date-filter {
+        flex-grow: 1;
+    }
+
 
     .placeholder-visible {
         visibility: visible;
@@ -167,18 +181,21 @@
     <div class="card-body">
         <form method="GET" action="{{ url_for('report.query') }}" id="report-query-form" novalidate>
             {{ form.hidden_tag() }}
-            <div class="row g-3 align-items-end">
-                <div class="col-md-auto" style="min-width: 150px;">
+            
+            <div class="filter-controls">
+                {# 報表類型 #}
+                <div class="filter-item">
                     {{ form.report_type.label(class="form-label") }}
                     {{ form.report_type(class="form-select", id="reportTypeSelect") }}
                 </div>
-                <div class="col-md-auto" style="min-width: 150px;">
+                {# 據點 #}
+                <div class="filter-item">
                     {{ form.location_id.label(class="form-label") }}
                     {{ form.location_id(class="form-select", id="locationSelect") }}
                 </div>
                 
                 {# 動態中間篩選器 #}
-                <div id="dynamic-middle-filter" class="col-md-auto" style="min-width: 150px;">
+                <div id="dynamic-middle-filter" class="filter-item">
                      <div id="status-wrapper" style="display: none;">
                         {{ form.status.label(class="form-label") }}
                         {{ form.status(class="form-select") }}
@@ -194,8 +211,8 @@
                 </div>
 
                 {# 動態日期篩選器 #}
-                <div id="dynamic-date-filter" class="col-md-auto d-flex flex-grow-1" style="min-width: 300px;">
-                    <div id="standard-date-fields" class="row g-2 flex-grow-1">
+                <div id="dynamic-date-filter" class="date-range-item">
+                    <div id="standard-date-fields" class="row g-2">
                         <div class="col">
                             {{ form.start_date.label(class="form-label") }}
                             {{ form.start_date(class="form-control", id="startDatePicker") }}
@@ -205,20 +222,20 @@
                             {{ form.end_date(class="form-control", id="endDatePicker") }}
                         </div>
                     </div>
-                    <div id="periodic-date-fields" class="row g-2 flex-grow-1" style="display: none;">
+                    <div id="periodic-date-fields" class="row g-2" style="display: none;">
                         <div class="col">
                             <label class="form-label">比較期間 A</label>
-                            <div id="period-a-selector" class="periodic-group"></div>
+                            <div id="period-a-selector" class="date-range-group"></div>
                         </div>
                         <div class="col">
                             <label class="form-label">比較期間 B</label>
-                            <div id="period-b-selector" class="periodic-group"></div>
+                            <div id="period-b-selector" class="date-range-group"></div>
                         </div>
                     </div>
                 </div>
 
                 {# 查詢按鈕 #}
-                <div class="col-auto">
+                <div class="submit-button-item">
                     {{ form.submit(class="btn btn-primary") }}
                 </div>
             </div>
@@ -574,6 +591,10 @@
                             "{:,.0f}".format(day_check.cash_check_diff) }} {% endif %}
                         </td>
                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center">查無資料</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -789,16 +810,16 @@
             
             if (selectedType === 'periodic_performance') {
                 timeUnitWrapper.style.display = 'block';
-                periodicDateFields.style.display = 'block';
+                periodicDateFields.style.display = 'flex'; // 修正: 使用 'flex' 而不是 'block' 以確保並排
                 // 只有在第一次加載或切換到此報表時才更新選擇器
                 if (initialLoad || reportTypeSelect.dataset.lastType !== 'periodic_performance') {
                     updatePeriodicSelectors(initialLoad);
                 }
             } else if (selectedType === 'daily_settlement_query') {
                 statusWrapper.style.display = 'block';
-                standardDateFields.style.display = 'block';
+                standardDateFields.style.display = 'flex'; // 修正: 使用 'flex' 而不是 'block' 以確保並排
             } else {
-                 standardDateFields.style.display = 'block';
+                 standardDateFields.style.display = 'flex'; // 修正: 使用 'flex' 而不是 'block' 以確保並排
             }
             
             locationSelect.disabled = (selectedType === 'combined_summary_final');
@@ -829,6 +850,7 @@
                     defaultDate: initialLoad && initialParams.period_a ? initialParams.period_a : `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
                 });
 
+                // 修正: 確保這裡也創建了第二個輸入框
                 const inputB = document.createElement('input');
                 inputB.className = 'form-control'; inputB.name = 'period_b';
                 periodB_container.appendChild(inputB);
