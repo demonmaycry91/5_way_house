@@ -96,54 +96,51 @@ def query():
                     ).first()
                     
                     status_info = None
-                    is_match_filter = False
-
-                    if status_filter == 'all':
-                        is_match_filter = True
-                    elif status_filter == 'open' and business_day and business_day.status == 'OPEN':
-                        is_match_filter = True
-                    elif status_filter == 'pending_report' and business_day and business_day.status == 'PENDING_REPORT':
-                        is_match_filter = True
-                    elif status_filter == 'closed' and business_day and business_day.status == 'CLOSED':
-                        is_match_filter = True
-                    elif status_filter == 'no_data' and not business_day:
-                        is_match_filter = True
-                    
-                    if is_match_filter:
-                        if business_day:
-                            if business_day.status == 'CLOSED':
-                                status_info = {
-                                    'status_text': '已日結',
-                                    'badge_class': 'bg-primary',
-                                    'button_text': '查詢報表',
-                                    'button_url': url_for('cashier.daily_report', location_slug=loc.slug, date=current_date.isoformat()),
-                                    'button_class': 'btn-primary'
-                                }
-                            elif business_day.status == 'PENDING_REPORT':
-                                status_info = {
-                                    'status_text': '待確認報表',
-                                    'badge_class': 'bg-warning text-dark',
-                                    'button_text': '確認報表',
-                                    'button_url': url_for('cashier.daily_report', location_slug=loc.slug, date=current_date.isoformat()),
-                                    'button_class': 'btn-warning'
-                                }
-                            elif business_day.status == 'OPEN':
-                                status_info = {
-                                    'status_text': '營業中',
-                                    'badge_class': 'bg-success',
-                                    'button_text': '強制日結',
-                                    'button_url': url_for('admin.force_close_day', business_day_id=business_day.id),
-                                    'button_class': 'btn-danger'
-                                }
-                        else:
+                    if business_day:
+                        # 找到紀錄，根據狀態決定按鈕
+                        if business_day.status == 'CLOSED':
                             status_info = {
-                                'status_text': '沒有營業',
-                                'badge_class': 'bg-secondary',
-                                'button_text': '沒有營業',
-                                'button_url': '#',
-                                'button_class': 'bg-secondary disabled text-white'
+                                'status_text': '已日結',
+                                'badge_class': 'bg-primary',
+                                'button_text': '查詢日結報表',
+                                'button_url': url_for('cashier.daily_report', location_slug=loc.slug, date=current_date.isoformat()),
+                                'button_class': 'btn-primary'
                             }
-                        
+                        elif business_day.status == 'PENDING_REPORT':
+                            status_info = {
+                                'status_text': '待確認報表',
+                                'badge_class': 'bg-warning text-dark',
+                                'button_text': '確認報表',
+                                'button_url': url_for('cashier.daily_report', location_slug=loc.slug, date=current_date.isoformat()),
+                                'button_class': 'btn-warning'
+                            }
+                        elif business_day.status == 'OPEN':
+                            status_info = {
+                                'status_text': '營業中',
+                                'badge_class': 'bg-success',
+                                'button_text': '強制日結盤點',
+                                'button_url': url_for('admin.force_close_day', business_day_id=business_day.id),
+                                'button_class': 'btn-danger'
+                            }
+                    else:
+                        # 找不到紀錄，表示沒有營業
+                        status_info = {
+                            'status_text': '沒有營業',
+                            'badge_class': 'bg-secondary',
+                            'button_text': '日結盤點',
+                            'button_url': url_for('admin.new_force_close_day', location_id=loc.id, date=current_date.isoformat()),
+                            'button_class': 'btn-danger'
+                        }
+                    
+                    # 根據篩選器篩選結果
+                    is_filtered_out = False
+                    if status_filter != 'all':
+                        if status_filter == 'open' and business_day and business_day.status != 'OPEN': is_filtered_out = True
+                        if status_filter == 'pending_report' and (not business_day or business_day.status != 'PENDING_REPORT'): is_filtered_out = True
+                        if status_filter == 'closed' and (not business_day or business_day.status != 'CLOSED'): is_filtered_out = True
+                        if status_filter == 'no_data' and business_day: is_filtered_out = True
+                    
+                    if not is_filtered_out:
                         results.append({
                             'location': loc,
                             'date': current_date,
