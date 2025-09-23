@@ -32,9 +32,6 @@
                     </li>
                     {% if current_user.is_authenticated and current_user.has_role('Admin') %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.force_close_query') }}">補登日結</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('report.query') }}">報表查詢</a>
                     </li>
                     <li class="nav-item">

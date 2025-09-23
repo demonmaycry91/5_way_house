@@ -6,7 +6,7 @@ from ..models import BusinessDay, Transaction, TransactionItem, Location, DailyS
 from ..forms import ReportQueryForm, SettlementForm
 from .. import db, csrf
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func, case, extract
+from sqlalchemy import func, case, extract, and_
 from datetime import date, timedelta
 import json
 from ..decorators import admin_required
@@ -54,7 +54,7 @@ def query():
     
     all_categories = Category.query.all()
     form.location_id.choices = [('all', '所有據點')] + [(str(l.id), l.name) for l in Location.query.order_by(Location.id).all()]
-
+    
     results = []
     grand_total = None
     chart_data = None
@@ -65,6 +65,96 @@ def query():
     if report_type:
         form.process(request.args)
         location_id = request.args.get('location_id', 'all')
+        
+        if report_type == 'daily_settlement_query':
+            start_date_str = request.args.get('start_date')
+            end_date_str = request.args.get('end_date')
+            status_filter = request.args.get('status')
+            
+            try:
+                start_date = date.fromisoformat(start_date_str)
+                end_date = date.fromisoformat(end_date_str) if end_date_str else date.today()
+            except ValueError:
+                start_date = date.today()
+                end_date = date.today()
+                flash('無效的日期格式，已自動選取今日。', 'warning')
+                form.start_date.data = start_date
+                form.end_date.data = end_date
+                return render_template('report/query.html', form=form, report_type=report_type, results=results, all_categories=all_categories)
+            
+            locations = Location.query.order_by(Location.id).all()
+            results = []
+            for loc in locations:
+                if location_id != 'all' and str(loc.id) != location_id:
+                    continue
+                
+                # 遍歷日期範圍，找出所有可能的營業日
+                current_date = start_date
+                while current_date <= end_date:
+                    business_day = BusinessDay.query.filter(
+                        and_(BusinessDay.date == current_date, BusinessDay.location_id == loc.id)
+                    ).first()
+                    
+                    status_info = None
+                    if business_day:
+                        # 找到紀錄，根據狀態決定按鈕
+                        if business_day.status == 'CLOSED':
+                            status_info = {
+                                'status_text': '已日結',
+                                'badge_class': 'bg-primary',
+                                'button_text': '查詢日結報表',
+                                'button_url': url_for('cashier.daily_report', location_slug=loc.slug, date=current_date.isoformat()),
+                                'button_class': 'btn-primary'
+                            }
+                        elif business_day.status == 'PENDING_REPORT':
+                            status_info = {
+                                'status_text': '待確認報表',
+                                'badge_class': 'bg-warning text-dark',
+                                'button_text': '確認報表',
+                                'button_url': url_for('cashier.daily_report', location_slug=loc.slug, date=current_date.isoformat()),
+                                'button_class': 'btn-warning'
+                            }
+                        elif business_day.status == 'OPEN':
+                            status_info = {
+                                'status_text': '營業中',
+                                'badge_class': 'bg-success',
+                                'button_text': '強制日結盤點',
+                                'button_url': url_for('admin.force_close_day', business_day_id=business_day.id),
+                                'button_class': 'btn-danger'
+                            }
+                    else:
+                        # 找不到紀錄，表示沒有營業
+                        status_info = {
+                            'status_text': '沒有營業',
+                            'badge_class': 'bg-secondary',
+                            'button_text': '日結盤點',
+                            'button_url': url_for('admin.new_force_close_day', location_id=loc.id, date=current_date.isoformat()),
+                            'button_class': 'btn-danger'
+                        }
+                    
+                    # 根據篩選器篩選結果
+                    is_filtered_out = False
+                    if status_filter != 'all':
+                        if status_filter == 'open' and business_day and business_day.status != 'OPEN': is_filtered_out = True
+                        if status_filter == 'pending_report' and (not business_day or business_day.status != 'PENDING_REPORT'): is_filtered_out = True
+                        if status_filter == 'closed' and (not business_day or business_day.status != 'CLOSED'): is_filtered_out = True
+                        if status_filter == 'no_data' and business_day: is_filtered_out = True
+                    
+                    if not is_filtered_out:
+                        results.append({
+                            'location': loc,
+                            'date': current_date,
+                            'status_info': status_info
+                        })
+                    
+                    current_date += timedelta(days=1)
+            
+            return render_template('report/query.html',
+                           form=form,
+                           results=results,
+                           report_type=report_type,
+                           all_categories=all_categories)
+
 
         if report_type != 'periodic_performance':
             start_date_str = request.args.get('start_date')
@@ -471,6 +561,17 @@ def export_csv():
         if location_id != 'all': query = query.filter(BusinessDay.location_id == location_id)
         query_results = query.group_by(func.strftime('%H', Transaction.timestamp)).order_by(func.strftime('%H', Transaction.timestamp)).all()
         results_to_write = [(f"{r[0]}:00 - {int(r[0])+1}:00", r[1], r[2]) for r in query_results]
+    
+    elif report_type == 'daily_settlement_query':
+        header = ['日期', '據點', '狀態', '營業日ID']
+        # 由於已在上面處理，這裡不需要再查詢，直接寫入 results_to_write
+        for r in results:
+            results_to_write.append([
+                r['date'].strftime('%Y-%m-%d'),
+                r['location'].name,
+                r['status_info']['status_text'],
+                r['location'].id
+            ])
 
     elif report_type == 'periodic_performance':
         header = ['時間單位', '期間 A 銷售額', '期間 A 交易數', '期間 B 銷售額', '期間 B 交易數', '銷售額差異', '增長率']
@@ -694,10 +795,15 @@ def print_settlement(date_str):
 
     grand_total_dict['J'] = sum(r.total_transactions or 0 for r in closed_reports)
     grand_total_dict['K'] = sum(r.total_items or 0 for r in closed_reports)
-    
-    grand_total_dict['H'] = daily_settlement.total_deposit
-    grand_total_dict['I'] = daily_settlement.total_next_day_opening_cash
-    
+
+    if is_settled:
+        grand_total_dict['H'] = daily_settlement.total_deposit
+        grand_total_dict['I'] = daily_settlement.total_next_day_opening_cash
+    else:
+        grand_total_dict['I'] = 0 
+        # H: 存款 = E - I
+        grand_total_dict['H'] = grand_total_dict['E'] - grand_total_dict['I']
+
     class GrandTotal:
         def __init__(self, **entries): self.__dict__.update(entries)
     grand_total = GrandTotal(**grand_total_dict)

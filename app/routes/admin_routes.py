@@ -361,7 +361,64 @@ def force_close_day(business_day_id):
                            today_date=business_day.date.strftime("%Y-%m-%d"),
                            denominations=denominations,
                            form=form)
+                           
+@bp.route('/force_close_day/new', methods=['GET', 'POST'])
+@admin_required
+def new_force_close_day():
+    location_id = request.args.get('location_id')
+    date_str = request.args.get('date')
+    if not location_id or not date_str:
+        flash('缺少必要參數。', 'danger')
+        return redirect(url_for('report.query', report_type='daily_settlement_query'))
 
+    location = Location.query.get_or_404(location_id)
+    try:
+        target_date = date.fromisoformat(date_str)
+    except ValueError:
+        flash('無效的日期格式。', 'danger')
+        return redirect(url_for('report.query', report_type='daily_settlement_query'))
+        
+    existing_day = BusinessDay.query.filter_by(location_id=location.id, date=target_date).first()
+    if existing_day:
+        flash('此營業日已存在，請勿重複建立。', 'warning')
+        return redirect(url_for('report.query', report_type='daily_settlement_query'))
+        
+    form = CloseDayForm()
+    denominations = [1000, 500, 200, 100, 50, 10, 5, 1]
+
+    if form.validate_on_submit():
+        try:
+            total_cash_counted = 0
+            cash_breakdown = {}
+            for denom in denominations:
+                count = request.form.get(f"count_{denom}", 0, type=int)
+                total_cash_counted += count * denom
+                cash_breakdown[denom] = count
+
+            new_business_day = BusinessDay(
+                date=target_date, 
+                location=location,
+                opening_cash=0.0, # 假設補登日結開店現金為0
+                closing_cash=total_cash_counted,
+                cash_breakdown=json.dumps(cash_breakdown),
+                status="CLOSED" # 補登後直接將狀態設為 CLOSED
+            )
+            db.session.add(new_business_day)
+            db.session.commit()
+            flash(f"已為據點 {location.name} 補登 {target_date.strftime('%Y-%m-%d')} 日結報表並歸檔。", "success")
+            return redirect(url_for('cashier.daily_report', location_slug=location.slug, date=target_date.isoformat()))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"處理補登日結時發生錯誤：{e}", "danger")
+            return redirect(url_for('admin.new_force_close_day', location_id=location_id, date=date_str))
+            
+    return render_template('admin/force_close_day.html',
+                           location=location,
+                           today_date=target_date.strftime("%Y-%m-%d"),
+                           denominations=denominations,
+                           form=form,
+                           is_new_entry=True)
+                           
 @bp.route('/force_close_query', methods=['GET'])
 def force_close_query():
     form = ReportQueryForm()
