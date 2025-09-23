@@ -11,11 +11,14 @@ export FLASK_APP=run.py
 flask db init
 flask db migrate -m "Initial migration"
 flask db upgrade
+flask backup init
 flask auth init-roles
 flask auth create-user <username> <password> --role Admin
 flask auth create-user root password --role Admin
-
+flask run
 
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 rq worker cashier-tasks
 rq worker cashier-tasks --url redis://localhost:6379/0
+
+# /instance中加入token和client_secret
