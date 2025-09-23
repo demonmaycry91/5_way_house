@@ -13,6 +13,8 @@ flask db migrate -m "Initial migration"
 flask db upgrade
 flask auth init-roles
 flask auth create-user <username> <password> --role Admin
+flask auth create-user root password --role Admin
+
 
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 rq worker cashier-tasks
