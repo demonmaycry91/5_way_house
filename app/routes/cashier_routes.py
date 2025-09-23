@@ -118,22 +118,45 @@ def logout():
     return redirect(url_for("cashier.login"))
 
 
-@bp.route("/settings", methods=["GET", "POST"])
+@bp.route("/settings", methods=['GET', 'POST'])
 @login_required
 @admin_required
 def settings():
     form = GoogleSettingsForm()
     if form.validate_on_submit():
+        # 處理 Google Sheets 備份設定
         SystemSetting.set('drive_folder_name', form.drive_folder_name.data)
-        SystemSetting.set('sheets_filename_format',
-                          form.sheets_filename_format.data)
-        flash('雲端備份設定已成功儲存！', 'success')
+        SystemSetting.set('sheets_filename_format', form.sheets_filename_format.data)
+
+        # 處理 instance/ 檔案備份設定
+        backup_files = []
+        if form.backup_db.data:
+            backup_files.append('app.db')
+        if form.backup_token.data:
+            backup_files.append('token.json')
+        if form.backup_client_secret.data:
+            backup_files.append('client_secret.json')
+        SystemSetting.set('instance_backup_files', json.dumps(backup_files))
+        
+        SystemSetting.set('instance_backup_frequency', form.backup_frequency.data)
+        SystemSetting.set('instance_backup_interval_hours', str(form.backup_interval_hours.data) if form.backup_interval_hours.data else '24')
+
+        flash('設定已儲存！', 'success')
         return redirect(url_for('cashier.settings'))
 
-    form.drive_folder_name.data = SystemSetting.get(
-        'drive_folder_name', 'Cashier_System_Reports')
-    form.sheets_filename_format.data = SystemSetting.get(
-        'sheets_filename_format', '{location_name}_{year}_業績')
+    # 載入現有設定到表單
+    if not form.is_submitted():
+        form.drive_folder_name.data = SystemSetting.get('drive_folder_name', 'Cashier_System_Reports')
+        form.sheets_filename_format.data = SystemSetting.get('sheets_filename_format', '{location_name}_{year}_業績')
+
+        backup_files_json = SystemSetting.get('instance_backup_files')
+        backup_files = json.loads(backup_files_json) if backup_files_json else []
+        form.backup_db.data = 'app.db' in backup_files
+        form.backup_token.data = 'token.json' in backup_files
+        form.backup_client_secret.data = 'client_secret.json' in backup_files
+
+        form.backup_frequency.data = SystemSetting.get('instance_backup_frequency', 'off')
+        form.backup_interval_hours.data = int(SystemSetting.get('instance_backup_interval_hours', '24') or 24)
 
     token_path = os.path.join(current_app.instance_path, "token.json")
     is_connected = os.path.exists(token_path)

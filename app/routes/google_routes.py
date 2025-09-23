@@ -112,6 +112,7 @@ def callback():
 def authorize_drive():
     """第一步：將使用者重新導向到 Google 的 OAuth 2.0 伺服器進行雲端授權"""
     client_secrets_file = os.path.join(current_app.instance_path, 'client_secret.json')
+    org_domain = os.getenv('ORGANIZATION_DOMAIN')
 
     flow = Flow.from_client_secrets_file(
         client_secrets_file,
@@ -119,13 +120,15 @@ def authorize_drive():
         redirect_uri=url_for('google.drive_callback', _external=True)
     )
     
-    # --- 修正點：加入 prompt='consent' ---
-    # 這會強制 Google 每次都顯示授權畫面，並確保回傳 refresh_token
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent'  # <-- 新增這一行
-    )
+    auth_url_params = {
+        'access_type': 'offline',
+        'include_granted_scopes': 'true',
+        'prompt': 'consent'
+    }
+    if org_domain:
+        auth_url_params['hd'] = org_domain
+        
+    authorization_url, state = flow.authorization_url(**auth_url_params)
     session['drive_auth_state'] = state
     return redirect(authorization_url)
 
@@ -134,6 +137,7 @@ def drive_callback():
     """第二步：處理來自 Google 的回呼，儲存雲端授權憑證"""
     client_secrets_file = os.path.join(current_app.instance_path, 'client_secret.json')
     token_file = os.path.join(current_app.instance_path, 'token.json')
+    org_domain = os.getenv('ORGANIZATION_DOMAIN')
 
     state = session['drive_auth_state']
     flow = Flow.from_client_secrets_file(
@@ -142,9 +146,32 @@ def drive_callback():
         state=state,
         redirect_uri=url_for('google.drive_callback', _external=True)
     )
-    flow.fetch_token(authorization_response=request.url)
+    
+    try:
+        flow.fetch_token(authorization_response=request.url)
+    except Exception as e:
+        flash(f'無法從 Google 獲取 Token: {e}', 'danger')
+        return redirect(url_for('cashier.settings'))
 
     credentials = flow.credentials
+
+    # 新增：獲取使用者資訊並檢查網域
+    userinfo_response = requests.get(
+        'https://www.googleapis.com/oauth2/v1/userinfo',
+        headers={'Authorization': f'Bearer {credentials.token}'}
+    )
+    if not userinfo_response.ok:
+        flash('無法從 Google 獲取使用者資訊。', 'danger')
+        return redirect(url_for('cashier.settings'))
+
+    user_info = userinfo_response.json()
+    email = user_info['email']
+
+    if org_domain and not email.endswith(f'@{org_domain}'):
+        flash(f'授權失敗。只允許使用 @{org_domain} 網域的帳號進行雲端備份。', 'danger')
+        # 為了安全起見，不儲存無效網域的憑證
+        return redirect(url_for('cashier.settings'))
+        
     with open(token_file, 'w') as token:
         token.write(credentials.to_json())
 

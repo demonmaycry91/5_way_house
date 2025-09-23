@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}系統設定{% endblock %}
 {% from "macros.html" import page_header with context %}
+{% block title %}系統設定{% endblock %}
 
 {% block content %}
+
 {{ page_header(
-    title='系統設定', 
-    subtitle='管理 Google 帳號連結與雲端備份選項'
-    ) }}
+title='系統設定',
+subtitle='管理 Google 帳號連結與雲端備份選項'
+) }}
 
 {# 顯示 flash 訊息 #}
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -21,81 +22,131 @@
 {% endif %}
 {% endwith %}
 
-{# --- Google 帳號連結狀態 --- #}
-<div class="card mb-4">
-    <div class="card-header">
-        Google 帳號連結 (用於雲端備份)
-    </div>
-    <div class="card-body">
-        {% if is_connected %}
-        <p class="text-success">✅ 狀態：已連結至您的 Google 帳號。</p>
-        {# --- 新增：顯示已連結的帳號 email --- #}
-        <p>目前連結的備份帳號：<strong>{{ drive_account_email or '無法讀取 email' }}</strong></p>
-        <p>所有交易與報表資料將會自動備份至您的 Google Drive。</p>
-        <a href="{{ url_for('google.authorize_drive') }}" class="btn btn-warning">重新授權 (更換帳號)</a>
-        {% else %}
-        <p class="text-danger">❌ 狀態：尚未連結 Google 帳號。</p>
-        <p>請點擊下方按鈕，登入您的 Google 帳號並授權本系統存取您的 Google Drive 以啟用自動備份功能。</p>
-        <a href="{{ url_for('google.authorize_drive') }}" class="btn btn-primary">點此連結 Google 帳號</a>
-        {% endif %}
-    </div>
-</div>
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
 
-{# --- 雲端備份設定表單 --- #}
-<div class="card mb-4">
-    <div class="card-header">
-        雲端備份設定
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('cashier.settings') }}" novalidate>
-            {{ form.hidden_tag() }}
-            <div class="mb-3">
-                {{ form.drive_folder_name.label(class="form-label") }}
-                {{ form.drive_folder_name(class="form-control") }}
-                <div class="form-text">{{ form.drive_folder_name.description }}</div>
-            </div>
-            <div class="mb-3">
-                {{ form.sheets_filename_format.label(class="form-label") }}
-                {{ form.sheets_filename_format(class="form-control") }}
-                <div class="form-text">{{ form.sheets_filename_format.description }}</div>
-            </div>
-            <div class="d-grid">
-                {{ form.submit(class="btn btn-primary") }}
-            </div>
-        </form>
-    </div>
-</div>
 
-{# --- 手動備份工具 --- #}
-<div class="card">
-    <div class="card-header">
-        手動備份工具
-    </div>
-    <div class="card-body">
-        <p>此工具會將您資料庫中**所有**據點的**所有**歷史資料，完整地重新備份到您的 Google Drive。這是一個耗時的操作，將會在背景執行。</p>
-        <form method="POST" action="{{ url_for('cashier.rebuild_backup') }}" onsubmit="return confirmBackup(this);">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" name="overwrite" id="overwriteCheck">
-                <label class="form-check-label" for="overwriteCheck">
-                    <strong>覆蓋現有檔案</strong>：若勾選，Google Drive 上的同名備份檔案將會被刪除並重建。
-                </label>
+            {# --- Google 帳號連結狀態 --- #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    Google 帳號連結 (用於雲端備份)
+                </div>
+                <div class="card-body">
+                    {% if is_connected %}
+                    <p class="text-success">✅ 狀態：已連結至您的 Google 帳號。</p>
+                    <p>目前連結的備份帳號：<strong>{{ drive_account_email or '無法讀取 email' }}</strong></p>
+                    <p>所有報表與資料將會自動備份至您的 Google Drive。</p>
+                    <a href="{{ url_for('google.authorize_drive') }}" class="btn btn-warning">重新授權 (更換帳號)</a>
+                    {% else %}
+                    <p class="text-danger">❌ 狀態：尚未連結 Google 帳號。</p>
+                    <p>請點擊下方按鈕，登入您的 Google 帳號並授權本系統存取您的 Google Drive 以啟用自動備份功能。</p>
+                    <a href="{{ url_for('google.authorize_drive') }}" class="btn btn-primary">點此連結 Google 帳號</a>
+                    {% endif %}
+                </div>
             </div>
-            <button type="submit" class="btn btn-danger">立即執行完整備份</button>
-        </form>
+
+            <form method="POST" action="{{ url_for('cashier.settings') }}">
+                {{ form.hidden_tag() }}
+
+                {# --- Google Sheets 備份設定區塊 --- #}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Google Sheets 報表備份設定
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.drive_folder_name.label(class="form-label") }}
+                            {{ form.drive_folder_name(class="form-control") }}
+                            <div class="form-text">{{ form.drive_folder_name.description }}</div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.sheets_filename_format.label(class="form-label") }}
+                            {{ form.sheets_filename_format(class="form-control") }}
+                            <div class="form-text">{{ form.sheets_filename_format.description }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {# --- 資料庫與憑證檔案備份設定區塊 --- #}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        資料庫與憑證檔案備份設定
+                    </div>
+                    <div class="card-body">
+                        <p>此設定會將 `instance/` 資料夾中的重要檔案備份到您的 Google Drive。</p>
+                        <div class="mb-3">
+                            <label class="form-label">選擇要備份的檔案</label>
+                            <div class="form-check">
+                                {{ form.backup_db(class="form-check-input") }}
+                                {{ form.backup_db.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.backup_token(class="form-check-input") }}
+                                {{ form.backup_token.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.backup_client_secret(class="form-check-input") }}
+                                {{ form.backup_client_secret.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.backup_frequency.label(class="form-label") }}
+                            {% for subfield in form.backup_frequency %}
+                            <div class="form-check">
+                                {{ subfield(class="form-check-input") }}
+                                {{ subfield.label(class="form-check-label") }}
+                            </div>
+                            {% endfor %}
+                            <div class="input-group mt-2">
+                                {{ form.backup_interval_hours(class="form-control", min="1") }}
+                                <span class="input-group-text">小時</span>
+                            </div>
+                            <div class="form-text">固定間隔備份需要應用程式持續運行。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">儲存所有備份設定</button>
+                </div>
+            </form>
+
+            {# --- 手動備份工具 (獨立區塊) --- #}
+            <div class="card mt-4">
+                <div class="card-header">
+                    手動備份工具
+                </div>
+                <div class="card-body">
+                    <p>此工具會將您資料庫中<b>所有</b>據點的<b>所有</b>歷史報表資料，完整地重新備份到您的 Google Sheets。這是一個耗時的操作，將會在背景執行。</p>
+                    <form method="POST" action="{{ url_for('cashier.rebuild_backup') }}"
+                        onsubmit="return confirmBackup(this);">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="overwrite" id="overwriteCheck">
+                            <label class="form-check-label" for="overwriteCheck">
+                                <strong>覆蓋現有檔案</strong>：若勾選，Google Drive 上的同名備份檔案將會被刪除並重建。
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-danger">立即執行完整備份</button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function confirmBackup(form) {
-    const overwriteCheckbox = form.querySelector('#overwriteCheck');
-    let message = "您確定要執行完整備份嗎？\n\n這將會讀取所有歷史資料並上傳至 Google Drive，可能需要數分鐘或更長時間。";
-    if (overwriteCheckbox.checked) {
-        message += "\n\n警告：您已勾選「覆蓋現有檔案」，Google Drive 上的同名備份將會被永久刪除！此操作無法復原。";
+    function confirmBackup(form) {
+        const overwriteCheckbox = form.querySelector('#overwriteCheck');
+        let message = "您確定要執行完整備份嗎？\n\n這將會讀取所有歷史資料並上傳至 Google Drive，可能需要數分鐘或更長時間。";
+        if (overwriteCheckbox.checked) {
+            message += "\n\n警告：您已勾選「覆蓋現有檔案」，Google Drive 上的同名備份將會被永久刪除！此操作無法復原。";
+        }
+        return confirm(message);
     }
-    return confirm(message);
-}
 </script>
 {% endblock %}

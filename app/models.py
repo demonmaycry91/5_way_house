@@ -1,3 +1,4 @@
+# app/models.py
 from . import db
 from datetime import datetime, timezone
 from flask_login import UserMixin
@@ -81,7 +82,7 @@ class Category(db.Model):
     color = db.Column(db.String(7), nullable=False, default='#cccccc')
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
     
-    # --- 修正點：新增 'other_income' 類別類型 ---
+    # --- 新增 'other_income' 類別類型 ---
     category_type = db.Column(db.String(30), nullable=False, default='product', server_default='product')
     discount_rules = db.Column(db.Text, nullable=True)
 
@@ -126,10 +127,6 @@ class BusinessDay(db.Model):
     transactions = db.relationship('Transaction', backref='business_day', lazy=True, cascade="all, delete-orphan")
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    # --- 刪除點：移除獨立的捐款與其他收入欄位 ---
-    # donation_total = db.Column(db.Float, default=0.0)
-    # other_total = db.Column(db.Float, default=0.0)
-    
     next_day_opening_cash = db.Column(db.Float, nullable=True)
 
     def __repr__(self):
@@ -144,10 +141,9 @@ class Transaction(db.Model):
     business_day_id = db.Column(db.Integer, db.ForeignKey('business_day.id'), nullable=False)
     items = db.relationship('TransactionItem', back_populates='transaction', lazy=True, cascade="all, delete-orphan")
 
-    # --- ↓↓↓ 在這裡修改欄位定義 ↓↓↓ ---
     cash_received = db.Column(db.Float, nullable=True)
     change_given = db.Column(db.Float, nullable=True)
-    # --- ↑↑↑ 修改結束 ↑↑↑ ---
+    discounts = db.Column(db.Text, nullable=True)
 
     def __repr__(self):
         return f'<Transaction {self.id} - Amount: {self.amount}>'
@@ -178,15 +174,21 @@ class SystemSetting(db.Model):
 
     @staticmethod
     def get(key, default=None):
-        setting = db.session.get(SystemSetting, key)
-        return setting.value if setting else default
+        from flask import g
+        if not hasattr(g, 'system_settings'):
+            g.system_settings = {s.key: s.value for s in SystemSetting.query.all()}
+        return g.system_settings.get(key, default)
 
     @staticmethod
     def set(key, value):
-        setting = db.session.get(SystemSetting, key)
+        from flask import g
+        setting = SystemSetting.query.filter_by(key=key).first()
         if setting:
             setting.value = value
         else:
             setting = SystemSetting(key=key, value=value)
             db.session.add(setting)
         db.session.commit()
+        # 清除快取以確保下次讀取的是最新值
+        if hasattr(g, 'system_settings'):
+            g.system_settings = None

@@ -1,6 +1,6 @@
 # app/forms.py
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField
+from wtforms import StringField, PasswordField, SubmitField, FloatField, TextAreaField, SelectMultipleField, widgets, SelectField, IntegerField, DateField, FormField, FieldList, HiddenField, MultipleFileField, RadioField, BooleanField
 from wtforms.fields import ColorField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo, ValidationError, Optional
 from .models import User, Role, Category, Location
@@ -145,6 +145,7 @@ class UserForm(FlaskForm):
 
 class GoogleSettingsForm(FlaskForm):
     """用於管理 Google Drive 和 Sheets 設定的表單"""
+    # 原始的 POS 交易備份設定
     drive_folder_name = StringField(
         'Google Drive 資料夾名稱',
         validators=[DataRequired(message="請輸入資料夾名稱。")],
@@ -155,4 +156,22 @@ class GoogleSettingsForm(FlaskForm):
         validators=[DataRequired(message="請輸入檔名格式。")],
         description="支援的變數: {location_name}, {location_slug}, {year}, {month}。例如: {location_name}_{year}_業績"
     )
+
+    # 新增：instance/ 檔案備份設定
+    backup_db = BooleanField('備份 app.db (資料庫檔案)')
+    backup_token = BooleanField('備份 token.json (Google 備份憑證)')
+    backup_client_secret = BooleanField('備份 client_secret.json (Google 應用程式憑證)')
+
+    backup_frequency = RadioField(
+        '自動備份頻率',
+        choices=[
+            ('off', '關閉'),
+            ('startup', '每次啟動時'),
+            ('shutdown', '每次關閉時'),
+            ('interval', '固定間隔')
+        ],
+        default='off'
+    )
+    backup_interval_hours = IntegerField('間隔時間 (小時)', validators=[Optional()])
+
     submit = SubmitField('儲存設定')

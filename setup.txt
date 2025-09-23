@@ -13,3 +13,7 @@ flask db migrate -m "Initial migration"
 flask db upgrade
 flask auth init-roles
 flask auth create-user <username> <password> --role Admin
+
+export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+rq worker cashier-tasks
+rq worker cashier-tasks --url redis://localhost:6379/0

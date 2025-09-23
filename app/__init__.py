@@ -7,17 +7,15 @@ from dotenv import load_dotenv
 from redis import Redis
 import rq
 from flask_wtf.csrf import CSRFProtect
-# --- 新增匯入 ---
 from sqlalchemy import MetaData
-# --- 修正點：匯入 LoginManager ---
 from flask_login import LoginManager
 import json
+import atexit
+import threading
 
 load_dotenv()
 csrf = CSRFProtect()
 
-# --- 新增：為資料庫約束(constraint)定義命名慣例 ---
-# 這會告訴 SQLAlchemy 如何自動為索引、唯一約束、外鍵等命名
 convention = {
     "ix": 'ix_%(column_0_label)s',
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -26,7 +24,6 @@ convention = {
     "pk": "pk_%(table_name)s"
 }
 
-# --- 修改：將命名慣例應用到 SQLAlchemy ---
 metadata = MetaData(naming_convention=convention)
 db = SQLAlchemy(metadata=metadata)
 
@@ -54,11 +51,9 @@ def create_app():
 
     csrf.init_app(app)
     db.init_app(app)
-    # --- 修改：加入 render_as_batch=True 以支援 SQLite 的表結構變更 ---
     migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
-    # --- 新增：註冊自訂的 Jinja2 過濾器 ---
     def from_json_filter(value):
         if value:
             return json.loads(value)
@@ -76,5 +71,21 @@ def create_app():
     from . import models
     from . import auth_commands
     auth_commands.init_app(app)
+
+    # 備份邏輯已移至此處，以確保在應用程式上下文中執行
+    from .services.backup_service import backup_instance_to_drive, BackupScheduler
+    from .models import SystemSetting
+    
+    with app.app_context():
+        backup_frequency = SystemSetting.get('instance_backup_frequency', 'off')
+        if backup_frequency == 'startup':
+            backup_instance_to_drive()
+        elif backup_frequency == 'shutdown':
+            atexit.register(backup_instance_to_drive)
+        elif backup_frequency == 'interval':
+            scheduler = BackupScheduler(app)
+            scheduler.daemon = True
+            scheduler.start()
+            atexit.register(scheduler.stop)
 
     return app
