@@ -22,3 +22,15 @@ rq worker cashier-tasks
 rq worker cashier-tasks --url redis://localhost:6379/0
 
 # /instance中加入token和client_secret
+====
+給予腳本執行權限：chmod +x setup.sh
+
+執行腳本：./setup.sh
+# 啟用虛擬環境
+source .venv/bin/activate
+
+# 啟動 Flask 伺服器
+flask run
+
+# 在另一個終端機中，啟動 RQ 背景任務 worker
+rq worker cashier-tasks
