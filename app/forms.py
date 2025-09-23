@@ -71,12 +71,12 @@ class ReportQueryForm(FlaskForm):
         ('daily_cash_summary', '各據點當日結算'),
         ('daily_cash_check', '各據點現金盤點'),
         ('transaction_log', '各據點交易細節'),
+        ('daily_settlement_query', '各據點日結查詢'),
         ('combined_summary_final', '合併報表總結 (現金核對)'),
         ('product_mix', '產品類別銷售分析'),
         ('sales_trend', '銷售趨勢報告'),
         ('peak_hours', '時段銷售分析'),
-        ('periodic_performance', '週期性業績分析'),
-        ('daily_settlement_query', '各據點日結查詢')
+        ('periodic_performance', '週期性業績分析')
     ], validators=[DataRequired()])
     
     location_id = SelectField('據點', coerce=str, validators=[Optional()])

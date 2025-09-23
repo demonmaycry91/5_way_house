@@ -164,7 +164,7 @@ def settings():
 
     drive_account_email = None
     if is_connected:
-        user_info = google_service.get_drive_user_info()
+        user_info = google_service.get_drive_user_info(current_app)
         if user_info and 'email' in user_info:
             drive_account_email = user_info['email']
 
@@ -204,8 +204,11 @@ def rebuild_backup():
 @admin_required
 def manual_instance_backup():
     try:
-        backup_service.backup_instance_to_drive()
-        flash('已成功手動執行資料庫與憑證備份。', 'success')
+        current_app.task_queue.enqueue(
+            'app.services.backup_service.backup_instance_to_drive',
+            job_timeout='10m'
+        )
+        flash('已成功提交手動備份請求！備份將在背景執行，請稍後至 Google Drive 查閱結果。', 'info')
     except Exception as e:
         flash(f'手動備份失敗：{e}', 'danger')
         current_app.logger.error(f'手動備份失敗: {e}')
