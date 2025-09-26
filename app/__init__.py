@@ -37,12 +37,12 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-fallback-secret-key')
     app.config['SESSION_PERMANENT'] = False
     
-    try:
-        os.makedirs(app.instance_path)
-    except OSError:
-        pass
+    # 優先從環境變數讀取 DATABASE_URL，用於 Render
+    # 如果找不到，則使用本地的 SQLite 路徑
     db_path = os.path.join(app.instance_path, 'app.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    database_uri = os.getenv('DATABASE_URL', f'sqlite:///{db_path}')
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     app.config['REDIS_URL'] = os.getenv('REDIS_URL', 'redis://')
