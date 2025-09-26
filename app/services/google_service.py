@@ -10,8 +10,39 @@ from sqlalchemy import func, extract
 from collections import defaultdict
 import requests
 
-# (get_google_creds, get_services, find_or_create_folder 維持不變)
-def get_google_creds(app): # 修改：新增 app 參數
+# 新增：從環境變數讀取 JSON 內容並寫入檔案
+def write_creds_from_env(app):
+    token_file = os.path.join(app.instance_path, "token.json")
+    client_secret_file = os.path.join(app.instance_path, "client_secret.json")
+
+    # 確保 instance 資料夾存在
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+    # 檢查並寫入 token.json
+    if "GOOGLE_TOKEN_JSON" in os.environ and not os.path.exists(token_file):
+        try:
+            with open(token_file, "w") as f:
+                f.write(os.environ["GOOGLE_TOKEN_JSON"])
+            app.logger.info("已從環境變數寫入 token.json。")
+        except Exception as e:
+            app.logger.error(f"寫入 token.json 時發生錯誤: {e}")
+
+    # 檢查並寫入 client_secret.json
+    if "GOOGLE_CLIENT_SECRET_JSON" in os.environ and not os.path.exists(client_secret_file):
+        try:
+            with open(client_secret_file, "w") as f:
+                f.write(os.environ["GOOGLE_CLIENT_SECRET_JSON"])
+            app.logger.info("已從環境變數寫入 client_secret.json。")
+        except Exception as e:
+            app.logger.error(f"寫入 client_secret.json 時發生錯誤: {e}")
+
+def get_google_creds(app):
+    # 新增這行以確保在每次需要憑證時，檔案都會被檢查並寫入
+    write_creds_from_env(app)
+    
     token_file = os.path.join(app.instance_path, "token.json") # 修改：使用 app
     creds = None
     if os.path.exists(token_file):

@@ -27,6 +27,9 @@ LOGIN_SCOPES = [
 
 @bp.route('/login')
 def login():
+    # 新增這行：在讀取 client_secrets_file 之前先寫入
+    write_creds_from_env(current_app)
+
     """第一步：將使用者重新導向到 Google 的 OAuth 2.0 伺服器進行登入"""
     client_secrets_file = os.path.join(current_app.instance_path, 'client_secret.json')
     org_domain = os.getenv('ORGANIZATION_DOMAIN')
@@ -110,6 +113,9 @@ def callback():
 
 @bp.route('/authorize_drive')
 def authorize_drive():
+    # 新增這行：在讀取 client_secrets_file 之前先寫入
+    write_creds_from_env(current_app)
+
     """第一步：將使用者重新導向到 Google 的 OAuth 2.0 伺服器進行雲端授權"""
     client_secrets_file = os.path.join(current_app.instance_path, 'client_secret.json')
     org_domain = os.getenv('ORGANIZATION_DOMAIN')
