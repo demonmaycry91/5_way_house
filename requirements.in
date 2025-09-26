@@ -68,3 +68,4 @@ pandas                   # 強大的資料分析和操作函式庫
 openpyxl                 # 讀寫 Excel .xlsx 檔案的函式庫
 
 psycopg2-binary
+gunicorn
